@@ -1,0 +1,92 @@
+USE [DK_DB_COMPENSATION]
+GO
+
+ALTER FUNCTION [Compensation].[FN_EmployeeAwardAccrualPredicate](@EmployeeAwardId as bigint)
+    RETURNS TABLE  
+AS 
+	RETURN 	
+	SELECT 1 AS fn_securitypredicate_result
+	FROM [Compensation].EmployeeAward EA
+	WHERE EA.ID = @EmployeeAwardId
+		AND (EA.EmployeeID IN (SELECT HREmployeeID FROM COMMON.[User] WHERE 'DKP\' + Code = CONVERT(SYSNAME, SYSTEM_USER))
+		OR EA.EmployeeID IN (SELECT EmployeeID FROM [Compensation].[FN_GetEmployeesByManager] (CONVERT(SYSNAME, SYSTEM_USER)))
+		OR IS_MEMBER('DKP\RiseProdUsers') = 1 )
+GO
+
+ALTER FUNCTION [Compensation].[FN_EmployeeAwardPaymentDeferredGainPredicate](@EmployeeAwardPaymentId as bigint)
+    RETURNS TABLE  
+AS 
+	RETURN 
+	SELECT 1 AS fn_securitypredicate_result
+	FROM [Compensation].EmployeeAwardPayment EAP
+	JOIN [Compensation].EmployeeAward EA ON EAP.EmployeeAwardID = EA.ID
+	WHERE
+		EAP.ID = @EmployeeAwardPaymentId
+		AND (EA.EmployeeID IN (SELECT HREmployeeID FROM COMMON.[User] WHERE 'DKP\' + Code = CONVERT(SYSNAME, SYSTEM_USER))
+		OR EA.EmployeeID IN (SELECT EmployeeID FROM [Compensation].[FN_GetEmployeesByManager] (CONVERT(SYSNAME, SYSTEM_USER)))
+		OR IS_MEMBER('DKP\RiseProdUsers') = 1 )
+GO
+
+ALTER FUNCTION [Compensation].[FN_EmployeeAwardPaymentPredicate](@EmployeeAwardId as bigint)
+    RETURNS TABLE   
+AS 
+	RETURN 
+	SELECT 1 AS fn_securitypredicate_result
+	FROM [Compensation].EmployeeAward EA
+	WHERE EA.ID = @EmployeeAwardId
+		AND (EA.EmployeeID IN (SELECT HREmployeeID FROM COMMON.[User] WHERE 'DKP\' + Code = CONVERT(SYSNAME, SYSTEM_USER))
+		OR EA.EmployeeID IN (SELECT EmployeeID FROM [Compensation].[FN_GetEmployeesByManager] (CONVERT(SYSNAME, SYSTEM_USER)))
+		OR IS_MEMBER('DKP\RiseProdUsers') = 1 )
+GO
+
+
+ALTER FUNCTION [Compensation].[FN_EmployeeAwardPaymetAccrualPredicate](@EmployeeAwardPaymentId as bigint)
+    RETURNS TABLE  
+AS 
+	RETURN 
+	SELECT 1 AS fn_securitypredicate_result
+	FROM [Compensation].EmployeeAwardPayment EAP
+	JOIN [Compensation].EmployeeAward EA ON EAP.EmployeeAwardID = EA.ID
+	WHERE
+		EAP.ID = @EmployeeAwardPaymentId
+		AND (EA.EmployeeID IN (SELECT HREmployeeID FROM COMMON.[User] WHERE 'DKP\' + Code = CONVERT(SYSNAME, SYSTEM_USER))
+		OR EA.EmployeeID IN (SELECT EmployeeID FROM [Compensation].[FN_GetEmployeesByManager] (CONVERT(SYSNAME, SYSTEM_USER)))
+		OR IS_MEMBER('DKP\RiseProdUsers') = 1 )
+GO
+
+ALTER FUNCTION [Compensation].[FN_EmployeeAwardPredicate](@EmployeeId as varchar(255))
+    RETURNS TABLE  
+AS 
+	RETURN 
+	SELECT 1 AS fn_securitypredicate_result
+	WHERE
+		@EmployeeId IN (SELECT HREmployeeID FROM COMMON.[User] WHERE 'DKP\' + Code = CONVERT(SYSNAME, SYSTEM_USER))
+		OR @EmployeeId IN (SELECT EmployeeID FROM [Compensation].[FN_GetEmployeesByManager] (CONVERT(SYSNAME, SYSTEM_USER)))
+		OR IS_MEMBER('DKP\RiseProdUsers') = 1
+GO
+
+ALTER FUNCTION [Compensation].[FN_EmployeeW2Predicate](@EmployeeId as varchar(255))
+    RETURNS TABLE  
+AS 
+	RETURN 
+	SELECT 1 AS fn_securitypredicate_result
+	WHERE
+		@EmployeeId IN (SELECT HREmployeeID FROM COMMON.[User] WHERE 'DKP\' + Code = CONVERT(SYSNAME, SYSTEM_USER))
+		OR @EmployeeId IN (SELECT EmployeeID FROM [Compensation].[FN_GetEmployeesByManager] (CONVERT(SYSNAME, SYSTEM_USER)))
+		OR IS_MEMBER('DKP\RiseProdUsers') = 1 
+GO
+
+ALTER FUNCTION [Compensation].[FN_PrepayAllocationPredicate](@PaymentId as bigint)
+    RETURNS TABLE  
+AS 
+	RETURN SELECT 1 AS fn_securitypredicate_result
+	FROM [Compensation].EmployeeAwardPayment EAP
+	JOIN [Compensation].EmployeeAward EA ON EAP.EmployeeAwardID = EA.ID
+	WHERE
+		EAP.ID = @PaymentId
+		AND (EA.EmployeeID IN (SELECT HREmployeeID FROM COMMON.[User] WHERE 'DKP\' + Code = CONVERT(SYSNAME, SYSTEM_USER))
+		OR EA.EmployeeID IN (SELECT EmployeeID FROM [Compensation].[FN_GetEmployeesByManager] (CONVERT(SYSNAME, SYSTEM_USER)))
+		OR IS_MEMBER('DKP\RiseProdUsers') = 1 )
+GO
+
+
