@@ -1,20 +1,165 @@
-use [dk_db_compensation]
-GO
-DENY ALTER ON [Compensation].[FN_GetEmployeesByManager] TO [DKP\MiddleBackOfficeIT]
-GO
-use [dk_db_compensation]
-GO
-DENY CONTROL ON [Compensation].[FN_GetEmployeesByManager] TO [DKP\MiddleBackOfficeIT]
-GO
-use [dk_db_compensation]
-GO
-DENY REFERENCES ON [Compensation].[FN_GetEmployeesByManager] TO [DKP\MiddleBackOfficeIT]
-GO
-use [dk_db_compensation]
-GO
-DENY TAKE OWNERSHIP ON [Compensation].[FN_GetEmployeesByManager] TO [DKP\MiddleBackOfficeIT]
-GO
-use [dk_db_compensation]
-GO
-DENY VIEW DEFINITION ON [Compensation].[FN_GetEmployeesByManager] TO [DKP\MiddleBackOfficeIT]
-GO
+
+/*************************************************************************************
+**
+*************************************************************************************/
+        -------------------------------------------------------------------------------------
+        if      object_id('tempdb..#tmp', 'U') is not null
+                drop    table #tmp
+        -------------------------------------------------------------------------------------
+        create  table #tmp
+                (
+                mc              varchar(50)             ,
+                isProc          tinyint default 0       , --0 is table, 1 is proc, 2 is view
+                articleName     varchar(256)            ,
+                pubName         varchar(256)            ,
+                subName         varchar(256)            ,
+                isNew           bit default 0           ,
+                sourceSchema    varchar(256)
+                )
+        -------------------------------------------------------------------------------------
+        insert  into #tmp
+                (
+                mc              ,
+                isProc          ,
+                articleName     ,
+                pubName         ,
+                subname         ,
+                sourceSchema    ,
+                isNew
+                )
+        select  'ITQ'                ,
+                1                                       , --0 is table, 1 is proc, 2 is view
+                'CTG_MinPaySummaryandTurnover_SP'                 ,
+                'ITQ_Publication'                    ,
+                'CTG-SQLAAG02'            ,
+                'dbo'              ,
+                0 --is this a new or existing article.  0 means that it is existing.  1 means that it is new
+        --union   all
+        --select  '<Publication_Database>'                ,
+        --        0                                       , --0 is table, 1 is proc, 2 is view
+        --        '<Publication_Article>'                 ,
+        --        '<Publication_Name>'                    ,
+        --        '<subscriber_instance_name>'            ,
+        --        '<source_schema (ie. dbo)'              ,
+        --        0 --is this a new or existing article
+
+/*************************************************************************************
+**
+*************************************************************************************/
+
+        declare @query          varchar(max)    ,
+                @mc             varchar(50)     ,
+                @articleName    varchar(256)    ,
+                @isProc         int = 0         ,
+                @subscriberName varchar(256)    ,
+                @isNew          bit = 0         ,
+                @pubName        varchar(256)    ,
+                @sourceSchema   varchar(256)
+        -------------------------------------------------------------------------------------        
+        declare #tmp_c cursor for
+        select  mc              ,
+                isProc          ,
+                articleName     ,
+                pubName         ,
+                subName         ,
+                isNew           ,
+                sourceSchema
+        from    #tmp
+        -------------------------------------------------------------------------------------
+        open    #tmp_c
+        -------------------------------------------------------------------------------------
+        fetch   next from #tmp_c into @mc, @isProc, @articleName, @pubName, @subscriberName, @isNew, @sourceSchema
+                while   @@FETCH_STATUS != -1
+                        BEGIN
+
+
+                                set     @query = 
+                                '
+                                use   ' + QUOTENAME(@mc) + '
+                                
+                                EXEC    sp_changepublication
+                                        @publication    = ' + char(39) + @pubName + CHAR(39) + '        ,
+                                        @property       = N''allow_anonymous''                          ,
+                                        @value          = ''false''
+                                '
+                                
+                                exec    (@query)
+                                print   @query
+                                -------------------------------------------------------------------------------
+                                set     @query = '
+                                use   ' + QUOTENAME(@mc) + '
+                                
+                                EXEC    sp_changepublication
+                                        @publication    = ' + char(39) + @pubName + CHAR(39) + ',
+                                        @property       = N''immediate_sync''                   ,
+                                        @value          = ''false''
+                                '
+                                exec    (@query)
+                                print   @query
+                                -------------------------------------------------------------------------------
+                                if      @isNew = 0
+                                        BEGIN
+                                                set     @query = '
+                                                use   ' + QUOTENAME(@mc) + '
+                                                
+                                                EXEC    sp_dropsubscription
+                                                        @publication    = ' + char(39) + @pubName + CHAR(39) + '        ,
+                                                        @subscriber     = ' + char(39) + @subscriberName + char(39) + ' ,
+                                                        @article        = ' + char(39) + @articleName + CHAR(39) + '
+                                                '
+                                                exec    (@query)
+                                                print   @query
+                                                
+                                                
+                                                set     @query = '
+                                                use   ' + QUOTENAME(@mc) + '
+                                                
+                                                EXEC    sp_droparticle
+                                                        @publication                    = ' + char(39) + @pubName + CHAR(39) + '        ,
+                                                        @article                        = ' + char(39) + @articleName + CHAR(39) + '    ,
+                                                        @force_invalidate_snapshot      = 1
+                                                '
+                                                exec    (@query)
+                                                print   @query
+                                        END
+
+                                -------------------------------------------------------------------------------
+                                set     @query = 
+                                '
+                                use   ' + QUOTENAME(@mc) + '
+                                
+                                EXEC    sp_addarticle
+                                        @publication                    = ' + char(39) + @pubName + CHAR(39) + '        ,
+                                        @article                        = ' + char(39) + @articleName + CHAR(39) + '    ,
+                                        @source_object                  = ' + char(39) + @articleName + CHAR(39) + '    ,
+                                        @force_invalidate_snapshot      = 1                                             ,
+                                        @source_owner                   = ' + char(39) + @sourceSchema + char(39) + '
+                                '
+                                
+                                if      @isProc = 1
+                                        set     @query = @query + ',@type = N''proc schema only'''
+                                else    if @isProc = 2
+                                        set     @query = @query + ',@type = N''view schema only'''
+                                
+
+                                exec    (@query)
+                                print   @query
+                                
+                                -------------------------------------------------------------------------------
+                                set     @query = '
+                                use   ' + QUOTENAME(@mc) + '
+                                
+                                exec sp_refreshsubscriptions @publication = ' + char(39) + @pubName + CHAR(39) + ''
+                                
+                                exec    (@query)
+                                print   @query
+                                -------------------------------------------------------------------------------
+                        
+                        
+                                fetch   next from #tmp_c into @mc, @isProc, @articleName, @pubName, @subscriberName, @isNew, @sourceSchema
+                        END
+        deallocate      #tmp_c
+
+/*************************************************************************************
+**
+*************************************************************************************/
