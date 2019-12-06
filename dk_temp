@@ -1,165 +1,58 @@
+declare @dbName varchar(256)
 
-/*************************************************************************************
-**
-*************************************************************************************/
-        -------------------------------------------------------------------------------------
-        if      object_id('tempdb..#tmp', 'U') is not null
-                drop    table #tmp
-        -------------------------------------------------------------------------------------
-        create  table #tmp
-                (
-                mc              varchar(50)             ,
-                isProc          tinyint default 0       , --0 is table, 1 is proc, 2 is view
-                articleName     varchar(256)            ,
-                pubName         varchar(256)            ,
-                subName         varchar(256)            ,
-                isNew           bit default 0           ,
-                sourceSchema    varchar(256)
-                )
-        -------------------------------------------------------------------------------------
-        insert  into #tmp
-                (
-                mc              ,
-                isProc          ,
-                articleName     ,
-                pubName         ,
-                subname         ,
-                sourceSchema    ,
-                isNew
-                )
-        select  'ITQ'                ,
-                1                                       , --0 is table, 1 is proc, 2 is view
-                'CTG_MinPaySummaryandTurnover_SP'                 ,
-                'ITQ_Publication'                    ,
-                'CTG-SQLAAG02'            ,
-                'dbo'              ,
-                0 --is this a new or existing article.  0 means that it is existing.  1 means that it is new
-        --union   all
-        --select  '<Publication_Database>'                ,
-        --        0                                       , --0 is table, 1 is proc, 2 is view
-        --        '<Publication_Article>'                 ,
-        --        '<Publication_Name>'                    ,
-        --        '<subscriber_instance_name>'            ,
-        --        '<source_schema (ie. dbo)'              ,
-        --        0 --is this a new or existing article
+select  @dbname = 'UsageReporting'
 
-/*************************************************************************************
-**
-*************************************************************************************/
+select  @dbname = nullif(@dbname, '')
 
-        declare @query          varchar(max)    ,
-                @mc             varchar(50)     ,
-                @articleName    varchar(256)    ,
-                @isProc         int = 0         ,
-                @subscriberName varchar(256)    ,
-                @isNew          bit = 0         ,
-                @pubName        varchar(256)    ,
-                @sourceSchema   varchar(256)
-        -------------------------------------------------------------------------------------        
-        declare #tmp_c cursor for
-        select  mc              ,
-                isProc          ,
-                articleName     ,
-                pubName         ,
-                subName         ,
-                isNew           ,
-                sourceSchema
-        from    #tmp
-        -------------------------------------------------------------------------------------
-        open    #tmp_c
-        -------------------------------------------------------------------------------------
-        fetch   next from #tmp_c into @mc, @isProc, @articleName, @pubName, @subscriberName, @isNew, @sourceSchema
-                while   @@FETCH_STATUS != -1
-                        BEGIN
+/*************************************************************************************************
+**view recovery model
+*************************************************************************************************/
+	create	table #DBRecovery
+		(
+		db_name		nvarchar(128),
+		recovery	nvarchar(30)
+		)
 
+	Insert	Into #DBRecovery
+	Exec sp_MSforeachdb 'SELECT ''?'', CAST(DATABASEPROPERTYEX(''?'', ''Recovery'') as nvarchar(30))'
 
-                                set     @query = 
-                                '
-                                use   ' + QUOTENAME(@mc) + '
-                                
-                                EXEC    sp_changepublication
-                                        @publication    = ' + char(39) + @pubName + CHAR(39) + '        ,
-                                        @property       = N''allow_anonymous''                          ,
-                                        @value          = ''false''
-                                '
-                                
-                                exec    (@query)
-                                print   @query
-                                -------------------------------------------------------------------------------
-                                set     @query = '
-                                use   ' + QUOTENAME(@mc) + '
-                                
-                                EXEC    sp_changepublication
-                                        @publication    = ' + char(39) + @pubName + CHAR(39) + ',
-                                        @property       = N''immediate_sync''                   ,
-                                        @value          = ''false''
-                                '
-                                exec    (@query)
-                                print   @query
-                                -------------------------------------------------------------------------------
-                                if      @isNew = 0
-                                        BEGIN
-                                                set     @query = '
-                                                use   ' + QUOTENAME(@mc) + '
-                                                
-                                                EXEC    sp_dropsubscription
-                                                        @publication    = ' + char(39) + @pubName + CHAR(39) + '        ,
-                                                        @subscriber     = ' + char(39) + @subscriberName + char(39) + ' ,
-                                                        @article        = ' + char(39) + @articleName + CHAR(39) + '
-                                                '
-                                                exec    (@query)
-                                                print   @query
-                                                
-                                                
-                                                set     @query = '
-                                                use   ' + QUOTENAME(@mc) + '
-                                                
-                                                EXEC    sp_droparticle
-                                                        @publication                    = ' + char(39) + @pubName + CHAR(39) + '        ,
-                                                        @article                        = ' + char(39) + @articleName + CHAR(39) + '    ,
-                                                        @force_invalidate_snapshot      = 1
-                                                '
-                                                exec    (@query)
-                                                print   @query
-                                        END
+	select	*
+	from	#DBRecovery
+        where   [db_name] = isnull(@dbName, [db_name])
 
-                                -------------------------------------------------------------------------------
-                                set     @query = 
-                                '
-                                use   ' + QUOTENAME(@mc) + '
-                                
-                                EXEC    sp_addarticle
-                                        @publication                    = ' + char(39) + @pubName + CHAR(39) + '        ,
-                                        @article                        = ' + char(39) + @articleName + CHAR(39) + '    ,
-                                        @source_object                  = ' + char(39) + @articleName + CHAR(39) + '    ,
-                                        @force_invalidate_snapshot      = 1                                             ,
-                                        @source_owner                   = ' + char(39) + @sourceSchema + char(39) + '
-                                '
-                                
-                                if      @isProc = 1
-                                        set     @query = @query + ',@type = N''proc schema only'''
-                                else    if @isProc = 2
-                                        set     @query = @query + ',@type = N''view schema only'''
-                                
+	drop	table #DBRecovery
+	
+/*************************************************************************************************
+**view backup history
+*************************************************************************************************/
 
-                                exec    (@query)
-                                print   @query
-                                
-                                -------------------------------------------------------------------------------
-                                set     @query = '
-                                use   ' + QUOTENAME(@mc) + '
-                                
-                                exec sp_refreshsubscriptions @publication = ' + char(39) + @pubName + CHAR(39) + ''
-                                
-                                exec    (@query)
-                                print   @query
-                                -------------------------------------------------------------------------------
-                        
-                        
-                                fetch   next from #tmp_c into @mc, @isProc, @articleName, @pubName, @subscriberName, @isNew, @sourceSchema
-                        END
-        deallocate      #tmp_c
-
-/*************************************************************************************
-**
-*************************************************************************************/
+	SELECT	database_name									AS [DBName]			,
+		user_name									AS [UserName]			,
+		cast(backup_size AS decimal(20,2)) / 1048576					AS [BackupSize_MB]		,
+		cast(compressed_backup_size AS decimal(20,2)) / 1048576				AS [Compressed_BackupSize_MB]	,
+		datediff(n,backup_start_date,backup_finish_date)				AS [Duration_Min]		,
+		datediff(dd,backup_finish_date,Getdate())					AS [BackupAge_days]		,
+		backup_finish_date								AS [FinishDate]			,
+		physical_device_name								AS [Location]			,
+		MF.device_type													,
+		case	type
+			when	'D'	then 'Database'
+			when	'I'	then 'Differential Database'
+			when	'L'	then 'Log'
+			when	'F'	then 'File or Filegroup'
+			when	'G'	then 'Differential File'
+			when	'P'	then 'Partial'
+			when	'Q'	then 'Differential Partial'
+		end										as [Backup_Type]		,
+		bs.software_vendor_id												,
+		software_major_version												,
+		software_minor_version												,
+		software_build_version												,
+		recovery_model
+	FROM	master..sysdatabases DB
+		inner JOIN msdb..backupset BS ON DB.name = BS.database_name
+		inner JOIN msdb..backupmediaset MS ON BS.media_set_id = MS.media_set_id
+		inner JOIN msdb..backupmediafamily MF ON BS.media_set_id = MF.media_set_id
+	where	[type] = 'D'
+                and database_name = isnull(@dbName, database_name)
+	order	by backup_finish_date desc
