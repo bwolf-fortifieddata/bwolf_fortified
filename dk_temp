@@ -1,303 +1,164 @@
-USE [DK_DB_APPS]
-GO
-/****** Object:  StoredProcedure [dbo].[DKG_SP_PCRF_SELECT_EXTRACT_DATA_CUSTOM]    Script Date: 12/6/2019 10:36:39 AM ******/
-SET ANSI_NULLS ON
-GO
-SET QUOTED_IDENTIFIER ON
-GO
+Import-Module D:\FD_Posh\SQLDataModules.psm1
 
-
---dbo.DKG_SP_PCRF_SELECT_EXTRACT_DATA    
-
-
-create PROCEDURE ##tmp_DKG_SP_PCRF_SELECT_EXTRACT_DATA_CUSTOM
- @int_extractid INT,
- @int_extractid_PrevYear INT                
-AS        
----- EXEC [dbo].[DKG_SP_PCRF_SELECT_EXTRACT_DATA_CUSTOM] 87599, 87585
---/**********************************************************************************************************        
---Created By   : 
---Created Date  : 
---Project   : 
---Description   : 
-        
+$CentralManagementServer = “NJ1PRDWITNESS02”;
+$FDDBAServer = “NJ1PRDITDB01”;
  
---**********************************************************************************************************/        
-BEGIN 
-
-
-
-	DECLARE @UltimateFund VARCHAR(MAX),@KD datetime,@PriorKD datetime
-
-    SELECT @UltimateFund = COALESCE(@UltimateFund + ',','') + DK_TFM_FUND_NAME 
-		FROM DK_DB_REFERENCE.dbo.DK_TBL_FUND_MASTER FM
-		INNER JOIN DK_DB_REFERENCE.dbo.DK_TBL_APP_FUND_MAPPING AFM
-		ON FM.DK_TFM_ID = AFM.DK_FK_TFM_TAFM_FUND_ID 
-		WHERE AFM.DK_FK_TFM_TAFM_APPLICATION_CODE = 'PCRF'
-		AND FM.DK_TFM_ISPASSTHROUGH = 1
-
-	SET @UltimateFund += ',DKSOF,DKSOI,HVMHC'
-
-	SELECT @KD=A.DK_TPET_KNOWLEDGE_DATE,@PriorKD=A.DK_TPET_PRIOR_KNOWLEDGE_DATE FROM [DK_DB_APPS].dbo.DKG_TBL_PCRF_EXTRACT_TRACKER A WHERE A.DK_TPET_ID=@int_extractid
-
-CREATE TABLE #DKG_TBL_PCRF_PNL_RAW_DATA(
-	[DK_TPPRD_ID] [numeric](18, 0) PRIMARY KEY NOT NULL,
-	[DK_TPPRD_EXTRACT_ID] [bigint] NULL,
-	[DK_TPPRD_DATE_FROM] [datetime] NULL,
-	[DK_TPPRD_DATE_TO] [datetime] NOT NULL,
-	[DK_TPPRD_INVESTMENT_CODE] [nvarchar](500) NULL,
-	--[DK_TPPRD_MANAGER] [nvarchar](100) NULL,
-        [DK_TPPRD_MANAGER] [varchar](100) NULL,
-	[DK_TPPRD_FUND] [nvarchar](200) NOT NULL,
-	[DK_TPPRD_DEAL_DESC] [nvarchar](200) NULL,
-	[DK_TPPRD_CURRENCY_CODE] [nvarchar](10) NULL,
-	[DK_TPPRD_LONG_SHORT] [nvarchar](20) NULL,
-	[DK_TPPRD_FXRATE_BEGIN] [float] NULL,
-	[DK_TPPRD_FXRATE_END] [float] NULL,
-	[DK_TPPRD_QUANTITY_BEGIN] [float] NULL,
-	[DK_TPPRD_QUANTITY_END] [float] NULL,
-	[DK_TPPRD_PRICE_BEGIN] [float] NULL,
-	[DK_TPPRD_PRICE_END] [float] NULL,
-	[DK_TPPRD_COST_BEGIN] [float] NULL,
-	[DK_TPPRD_COST_END] [float] NULL,
-	[DK_TPPRD_REAL_FX] [float] NULL,
-	[DK_TPPRD_UNREAL_FX] [float] NULL,
-	[DK_TPPRD_REAL_GL_PRICE] [float] NULL,
-	[DK_TPPRD_UNREAL_GL_PRICE] [float] NULL,
-	[DK_TPPRD_REAL_GL_MKT_LOCAL] [float] NULL,
-	[DK_TPPRD_REAL_GL_MKT_BASE] [float] NULL,
-	[DK_TPPRD_UNREAL_GL_MKT_LOCAL] [float] NULL,
-	[DK_TPPRD_UNREAL_GL_MKT_BASE] [float] NULL,
-	[DK_TPPRD_INTEREST] [float] NULL,
-	[DK_TPPRD_DIVIDEND] [float] NULL,
-	[DK_TPPRD_OTHER_INCOME_LOCAL] [float] NULL,
-	[DK_TPPRD_OTHER_INCOME_BASE] [float] NULL,
-	[DK_TPPRD_TOTAL_INCOME_LOCAL] [float] NULL,
-	[DK_TPPRD_TOTAL_INCOME_BASE] [float] NULL,
-	[DK_TPPRD_LOAD_DATE] [datetime] NOT NULL,
-	--[DK_TPPRD_SEC_ID] [nvarchar](20) NULL,
-        [DK_TPPRD_SEC_ID] int,
-	[DK_TPPRD_MV] [float] NULL,
-	[DK_TPPRD_EXPOSURE_LOCAL] [float] NULL,
-	[DK_TPPRD_EXPOSURE_BASE] [float] NULL,
-	[DK_TPPRD_INVESTMENT_TYPE] [varchar](50) NULL,
-	[DK_TPPRD_COST_CHANGE] [float] NULL,
-	[DK_TPPRD_ULT_FUND] [nvarchar](200)
-	)
-
-INSERT INTO #DKG_TBL_PCRF_PNL_RAW_DATA
-	(
-		[DK_TPPRD_ID],
-		[DK_TPPRD_EXTRACT_ID] ,
-		[DK_TPPRD_DATE_FROM] ,
-		[DK_TPPRD_DATE_TO] ,
-		[DK_TPPRD_INVESTMENT_CODE] ,
-		[DK_TPPRD_MANAGER] ,
-		[DK_TPPRD_FUND] ,
-		[DK_TPPRD_DEAL_DESC] ,
-		[DK_TPPRD_CURRENCY_CODE] ,
-		[DK_TPPRD_LONG_SHORT] ,
-		[DK_TPPRD_FXRATE_BEGIN] ,
-		[DK_TPPRD_FXRATE_END] ,
-		[DK_TPPRD_QUANTITY_BEGIN] ,
-		[DK_TPPRD_QUANTITY_END] ,
-		[DK_TPPRD_PRICE_BEGIN] ,
-		[DK_TPPRD_PRICE_END] ,
-		[DK_TPPRD_COST_BEGIN] ,
-		[DK_TPPRD_COST_END] ,
-		[DK_TPPRD_REAL_FX] ,
-		[DK_TPPRD_UNREAL_FX] ,
-		[DK_TPPRD_REAL_GL_PRICE] ,
-		[DK_TPPRD_UNREAL_GL_PRICE] ,
-		[DK_TPPRD_REAL_GL_MKT_LOCAL] ,
-		[DK_TPPRD_REAL_GL_MKT_BASE] ,
-		[DK_TPPRD_UNREAL_GL_MKT_LOCAL] ,
-		[DK_TPPRD_UNREAL_GL_MKT_BASE] ,
-		[DK_TPPRD_INTEREST] ,
-		[DK_TPPRD_DIVIDEND] ,
-		[DK_TPPRD_OTHER_INCOME_LOCAL] ,
-		[DK_TPPRD_OTHER_INCOME_BASE] ,
-		[DK_TPPRD_TOTAL_INCOME_LOCAL] ,
-		[DK_TPPRD_TOTAL_INCOME_BASE] ,
-		[DK_TPPRD_LOAD_DATE] ,
-		[DK_TPPRD_SEC_ID] ,
-		[DK_TPPRD_MV] ,
-		[DK_TPPRD_EXPOSURE_LOCAL] ,
-		[DK_TPPRD_EXPOSURE_BASE] ,
-		[DK_TPPRD_INVESTMENT_TYPE] 
-	)
-	SELECT * FROM [DK_DB_APPS].dbo.DKG_TBL_PCRF_PNL_RAW_DATA WHERE DK_TPPRD_EXTRACT_ID = 87585--@int_extractid_PrevYear
-
-	
-
-INSERT INTO #DKG_TBL_PCRF_PNL_RAW_DATA
-	(
-		[DK_TPPRD_ID],
-		[DK_TPPRD_EXTRACT_ID] ,
-		[DK_TPPRD_DATE_FROM] ,
-		[DK_TPPRD_DATE_TO] ,
-		[DK_TPPRD_INVESTMENT_CODE] ,
-		[DK_TPPRD_MANAGER] ,
-		[DK_TPPRD_FUND] ,
-		[DK_TPPRD_DEAL_DESC] ,
-		[DK_TPPRD_CURRENCY_CODE] ,
-		[DK_TPPRD_LONG_SHORT] ,
-		[DK_TPPRD_FXRATE_BEGIN] ,
-		[DK_TPPRD_FXRATE_END] ,
-		[DK_TPPRD_QUANTITY_BEGIN] ,
-		[DK_TPPRD_QUANTITY_END] ,
-		[DK_TPPRD_PRICE_BEGIN] ,
-		[DK_TPPRD_PRICE_END] ,
-		[DK_TPPRD_COST_BEGIN] ,
-		[DK_TPPRD_COST_END] ,
-		[DK_TPPRD_REAL_FX] ,
-		[DK_TPPRD_UNREAL_FX] ,
-		[DK_TPPRD_REAL_GL_PRICE] ,
-		[DK_TPPRD_UNREAL_GL_PRICE] ,
-		[DK_TPPRD_REAL_GL_MKT_LOCAL] ,
-		[DK_TPPRD_REAL_GL_MKT_BASE] ,
-		[DK_TPPRD_UNREAL_GL_MKT_LOCAL] ,
-		[DK_TPPRD_UNREAL_GL_MKT_BASE] ,
-		[DK_TPPRD_INTEREST] ,
-		[DK_TPPRD_DIVIDEND] ,
-		[DK_TPPRD_OTHER_INCOME_LOCAL] ,
-		[DK_TPPRD_OTHER_INCOME_BASE] ,
-		[DK_TPPRD_TOTAL_INCOME_LOCAL] ,
-		[DK_TPPRD_TOTAL_INCOME_BASE] ,
-		[DK_TPPRD_LOAD_DATE] ,
-		[DK_TPPRD_SEC_ID] ,
-		[DK_TPPRD_MV] ,
-		[DK_TPPRD_EXPOSURE_LOCAL] ,
-		[DK_TPPRD_EXPOSURE_BASE] ,
-		[DK_TPPRD_INVESTMENT_TYPE] 
-	)
-	SELECT * FROM [DK_DB_APPS].dbo.DKG_TBL_PCRF_PNL_RAW_DATA WHERE DK_TPPRD_EXTRACT_ID = @int_extractid
-
-	update #DKG_TBL_PCRF_PNL_RAW_DATA
-	SET [DK_TPPRD_COST_CHANGE] = ISNULL(DK_TPPRD_COST_END,0)-ISNULL(DK_TPPRD_COST_BEGIN,0) 
-	
-	UPDATE #DKG_TBL_PCRF_PNL_RAW_DATA
-	SET DK_TPPRD_QUANTITY_END = 0,
-	DK_TPPRD_COST_END = 0,
-	DK_TPPRD_MV = 0,
-	DK_TPPRD_UNREAL_GL_MKT_BASE = 0,
-	DK_TPPRD_EXPOSURE_BASE = 0
-	WHERE DK_TPPRD_EXTRACT_ID = 87585--@int_extractid_PrevYear
-	
-	UPDATE #DKG_TBL_PCRF_PNL_RAW_DATA
-	SET DK_TPPRD_QUANTITY_BEGIN = 0,
-	DK_TPPRD_COST_BEGIN = 0
-	WHERE DK_TPPRD_EXTRACT_ID = @int_extractid
-		       
-
-	UPDATE #DKG_TBL_PCRF_PNL_RAW_DATA
-	SET DK_TPPRD_ULT_FUND=        
-	   CASE WHEN DK_TPPRD_FUND IN (SELECT * from dbo.DK_FN_GET_CSV_TO_TABLE(@UltimateFund)) THEN
-		CASE          
-			WHEN DK_TPPRD_DEAL_DESC = 'MGR_01-CORP' THEN ''        
-			WHEN DK_TPPRD_DEAL_DESC LIKE 'MGR_%' THEN ''        
-			ELSE SUBSTRING(DK_TPPRD_DEAL_DESC,0,CHARINDEX('-',DK_TPPRD_DEAL_DESC))        
-	     END
-		 ELSE DK_TPPRD_FUND	 
-	    END
-
- SELECT        
-   --DK_TPPRD_ID AS 'ID',
-   --DK_TPPRD_EXTRACT_ID AS 'ExtractId',
-   @KD AS Status,        
-   DK_TPPRD_DATE_FROM  AS DateFrom  ,        
-   DK_TPPRD_DATE_TO  AS DateTo  ,     
-   CASE    
- WHEN  DK_TPPRD_FUND='DKIP_II'    
-  THEN 'DKIP'    
- ELSE DK_TPPRD_FUND    
- END AS Fund  ,        
-   ISNULL(MM.DK_TMM_MANAGER_DISPLAY_NAME,'DEFAULT')  AS Manager ,        
-   CASE  
-   --WHEN DK_TPPRD_FUND IN ('BLMC', 'LMN','ERHL', 'BKM','CJVLP','GHSI','GHSC','DKSOI','DKSOF','HMIL','HMHC','DKSOI_II','DKSOMF_II','DKIP_II','DKSOI_III','DKSOMF_III','GPMH','AQUA','MPP','APLTD','BLM','HVMHC','HBHC','HBMHC','HB1','MIL','ASH-DKJV','ASH-DKDAC','ASH-DKMF','ASH-DKSOI2', 'BH2L','BHOE','3515BT','GPMO','HURST','HMDXMHC', 'HMDXHC','HMDX1','GCTC','RCI_17', 'RCI_5_27', 'RCI_19_23_28', 'RCI_1_2_3', 'RCI_4_29', 'B2E', 'EPI_3', 'EPI_4_HORSE', 'TUYAHE', 'PIOCHE', 'BONANZA', 'Ertow_II','FILPBT','FILP','HBII','GCTCBT') AND DK_TPPRD_DEAL_DESC NOT LIKE 'MGR_%' THEN  
-   WHEN CHARINDEX('MGR_', DK_TPPRD_DEAL_DESC) > 1 THEN
-    SUBSTRING(SUBSTRING(DK_TPPRD_DEAL_DESC,charindex('-',DK_TPPRD_DEAL_DESC)+1,5000),charindex('-',SUBSTRING(DK_TPPRD_DEAL_DESC,charindex('-',DK_TPPRD_DEAL_DESC)+1,5000))+1,5000)
-   ELSE  
-    SUBSTRING(DK_TPPRD_DEAL_DESC,CHARINDEX('-',DK_TPPRD_DEAL_DESC)+1,5000)
-  END AS DealCode  ,        
-   CASE DK_TPPRD_INVESTMENT_TYPE        
-    WHEN 'Currency' THEN DK_TPPRD_INVESTMENT_TYPE        
-    ELSE ISNULL(DK_VGF_DK_SEC_TYPE_NAME,'')         
-   END      AS InvestmentType ,        
-   REPLACE(DK_TPPRD_INVESTMENT_CODE,'&amp;','&') AS InvestmentCode ,        
-   ISNULL(DK_VGF_TS_DESC,'') AS [Investment Description] ,        
-   ISNULL(DK_VGF_NB_GENEVA_UNIT_FACTOR,'') AS UnitFactor ,        
-   ISNULL(DK_VGF_NB_GENEVA_PRICING_FACTOR,'') AS PricingFactor,        
-   DK_TPPRD_CURRENCY_CODE AS Currency ,        
-   DK_TPPRD_FXRATE_BEGIN AS FxRate_Begin,        
-   DK_TPPRD_FXRATE_END  AS FxRate_End,        
-   DK_TPPRD_PRICE_BEGIN AS [Local Price_Begin],        
-   DK_TPPRD_PRICE_END  AS [Local Price_End] ,        
-   DK_TPPRD_QUANTITY_BEGIN AS Quantity_Begin ,        
-   DK_TPPRD_QUANTITY_END AS Quantity_End ,        
-   DK_TPPRD_COST_BEGIN  AS Cost_Begin ,        
-   DK_TPPRD_COST_END  AS Cost_End  ,        
-   DK_TPPRD_MV    AS MarketValue_End,        
-   DK_TPPRD_UNREAL_GL_MKT_BASE AS Unreal_GL_Mkt_END,        
-   --ISNULL(DK_TPPRD_COST_END,0)-ISNULL(DK_TPPRD_COST_BEGIN,0) AS Cost_Change,        
-   [DK_TPPRD_COST_CHANGE] AS Cost_Change,
-   DK_TPPRD_UNREAL_GL_PRICE AS UnrealPrice ,        
-   DK_TPPRD_REAL_GL_PRICE AS RealPrice ,        
-   DK_TPPRD_REAL_FX AS RealFX ,        
-   DK_TPPRD_UNREAL_FX AS UnrealFX ,        
-   DK_TPPRD_INTEREST  AS Coupon ,        
-   DK_TPPRD_DIVIDEND  AS Dividend ,        
-   DK_TPPRD_OTHER_INCOME_BASE AS OtherIncomeBase,        
-   DK_TPPRD_TOTAL_INCOME_LOCAL TotalLocalIncome,        
-   DK_TPPRD_TOTAL_INCOME_BASE AS TotalIncomeBase,        
-   DK_TPPRD_EXPOSURE_BASE AS ExposureMarketValue ,        
-   CASE WHEN FM1.DK_TFM_ROLLUP_ULTIMATE_FUND_ID IS NOT NULL 
-		THEN FM2.DK_TFM_FUND_NAME  
-		ELSE DK_TPPRD_ULT_FUND	 
-	END  AS UltimateFund,        
-	REPLACE(DK_TPPRD_DEAL_DESC,'&amp;','&')  AS UltimateStrategy,        
-   --DK_TPPRD_SEC_ID,        
-   CASE WHEN ISNUMERIC(DK_TPPRD_SEC_ID) = 1 THEN CONVERT(NUMERIC(24, 5), DK_TPPRD_SEC_ID) ELSE 0 END AS AltId    ,        
-   CASE WHEN DK_TPPRD_MANAGER IN ('MGR_11','MGR_13','MGR_15','MGR_26','MGR_28','MGR_29') THEN 'Merger Arbitrage'
-   WHEN DK_TPPRD_MANAGER IN ('MGR_56','MGR_57','MGR_58') THEN 'Special Situations'
-   WHEN DK_TPPRD_MANAGER IN ('MGR_63','MGR_64','MGR_65','MGR_66','MGR_67','MGR_68') THEN 'Equity Capital Markets'
-   ELSE
-   ROLLUP.DK_TMM_MANAGER_DISPLAY_NAME 
-   END
-   AS RollUpManager ,        
-   @KD AS Knowledgedate,        
-   @PriorKD AS PriorKnowledgedate,        
-   [CUSIP ID] AS CUSIP,        
-   [ISIN ID] AS ISIN,        
-   [BB ID] AS 'BBG Ticker'   
+$datetime = (get-date).ToString("yyyyMMdd_HHmmss");
  
- FROM #DKG_TBL_PCRF_PNL_RAW_DATA        
-   --LEFT JOIN [DK_DB_APPS].dbo.DKG_TBL_PCRF_EXTRACT_TRACKER ON DK_TPET_ID = DK_TPPRD_EXTRACT_ID        
-   LEFT JOIN [DK_DB_SECMASTER].dbo.DK_VW_GENEVA_FLATVIEW ON ISNULL(DK_TPPRD_SEC_ID,'0') = DK_VGF_TS_ID         
-   LEFT JOIN [DK_DB_SECMASTER].dbo.DK_VW_FLATVIEW (NOLOCK) ON ISNULL(DK_TPPRD_SEC_ID,'0') = DK_TS_ID        
-   LEFT JOIN [DK_DB_REFERENCE].dbo.DK_TBL_MANAGER_MASTER MM (NOLOCK) ON DK_TPPRD_MANAGER = MM.DK_TMM_GENEVA_MANAGER_CODE        
-   JOIN [DK_DB_REFERENCE].dbo.DK_TBL_MANAGER_MASTER ROLLUP (NOLOCK) ON MM.DK_TMM_GENEVA_ROLL_MGR_CODE = ROLLUP.DK_TMM_GENEVA_MANAGER_CODE   
-   LEFT OUTER JOIN DK_DB_REFERENCE.DBO.DK_TBL_FUND_MASTER FM1 ON FM1.DK_TFM_FUND_NAME = DK_TPPRD_ULT_FUND
-   LEFT JOIN DK_DB_REFERENCE.DBO.DK_TBL_FUND_MASTER FM2 ON FM1.DK_TFM_ROLLUP_ULTIMATE_FUND_ID = FM2.DK_TFM_ID           
- WHERE --DK_TPPRD_EXTRACT_ID in(@int_extractid, @int_extractid_PrevYear) AND       
-   (NOT DK_TPPRD_SEC_ID IS NULL OR LTRIM(RTRIM(DK_TPPRD_SEC_ID)) <> '')      
+$extractFile = @"
+C:\posh\logshipping_$datetime.csv
+"@
+ 
+$sconn = new-object System.Data.SqlClient.SqlConnection(“server=$CentralManagementServer;Trusted_Connection=true”);
+ 
+$q = “select s.name from [msdb].[dbo].[sysmanagement_shared_registered_servers] s
+join [msdb].[dbo].[sysmanagement_shared_server_groups] g on g.server_group_id = s.server_group_id
+join [msdb].[dbo].[sysmanagement_shared_server_groups] p on p.server_group_id = g.parent_id
+where p.name <> 'APPLICATIONS'
+and s.name not in ('NJ1DEVGENAPP01', 'NJ1UATRISEDB01')
+order by s.name --where name like '%PRD%';”
+ 
+$sconn.Open()
+$cmd = new-object System.Data.SqlClient.SqlCommand ($q, $sconn);
+$cmd.CommandTimeout = 0;
+$dr = $cmd.ExecuteReader();
+
+Invoke-Sqlcmd -ServerInstance $FDDBAServer -Database 'FDDBA' "delete from IdentityStatus";
+
+ 
+while ($dr.Read()) {
+$ServerName = $dr.GetValue(0);
+$server = $ServerName;
+$database = 'master';
+
+   
+     #$sqlQueryText = “select @@servername as servername, @@version as version”
+     write-host $ServerName
+
+     $sqlQueryText = "/* Define how close we are to the value limit
+   before we start throwing up the red flag.
+   The higher the value, the closer to the limit. */
+Declare @threshold decimal(3,2);
+SET @threshold = .50;
+set nocount on;
+ 
+/* Create a temp table */
+Create Table #identityStatus
+(
+      database_name     varchar(128)
+    , table_name        varchar(128)
+    , column_name       varchar(128)
+    , data_type         varchar(128)
+	, [length]			tinyint
+    , last_value        numeric(38,0)
+    , max_value         numeric(38,0)
+);
+
+CREATE TABLE #DataTypeMaxValue (DataType varchar(50), MaxValue numeric(38,0), [Length] tinyint)
+
+INSERT INTO #DataTypeMaxValue VALUES   ('tinyint' , 255, NULL)
+INSERT INTO #DataTypeMaxValue VALUES   ('smallint' , 32767, NULL)
+INSERT INTO #DataTypeMaxValue VALUES   ('int' , 2147483647, NULL)
+INSERT INTO #DataTypeMaxValue VALUES   ('bigint' , 9223372036854775807, NULL)
+
+declare @i tinyint
+set @i=1
+while @i <= 38
+begin
+	insert into #DataTypeMaxValue VALUES ('numeric', REPLICATE('9',@i), @i)
+	set @i = @i + 1
+end
+
+set @i=1
+while @i <= 38
+begin
+	insert into #DataTypeMaxValue VALUES ('decimal', REPLICATE('9',@i), @i)
+	set @i = @i + 1
+end
 
 
-  
-          
-END   
+/* Use an undocumented command to run a SQL statement
+   in each database on a server */
+Execute sp_msforeachdb '
+    Use [?];
+    Insert Into #identityStatus
+    Select ''?'' As [database_name]
+        , Object_Name(id.object_id, DB_ID(''?'')) As [table_name]
+        , id.name As [column_name]
+        , t.name As [data_type]
+		, m.[Length]
+		, cast(id.last_value as numeric(38,0))
+		, m.MaxValue
+    From sys.identity_columns  As id (nolock)
+    Join sys.types As t (nolock)
+        On id.system_type_id = t.system_type_id
+	left join #DataTypeMaxValue m on 
+		m.DataType = t.name collate SQL_Latin1_General_CP1_CI_AS and t.name not in (''numeric'', ''decimal'')
+		or
+		m.DataType = t.name collate SQL_Latin1_General_CP1_CI_AS AND (id.precision-id.scale) = m.length and t.name in (''numeric'', ''decimal'')
+    Where id.last_value Is Not Null';
+ 
+/* Retrieve our results and format it all prettily */
+Select @@servername as server_name
+	, database_name
+    , table_name
+    , column_name
+    , data_type
+	, [length]
+    , last_value
+    , Case 
+        When last_value < 0 Then 100
+        Else (1 - Cast(last_value As float(4)) / max_value) * 100 
+      End As [percentLeft]
+	, getdate() as RunDate
+From #identityStatus
+where Cast(last_value As float(4)) / max_value >= @threshold
+Order By percentLeft;
+ 
+/* Clean up after ourselves */
+Drop Table #identityStatus;
+Drop Table #DataTypeMaxValue
 
+"
+ 
+ 
+     $query = $sqlQueryText;
 
     
+     $selectResult=Invoke-Sqlcmd -ServerInstance $ServerName -Query $sqlQueryText
+     #[string]$a=$selectResult.column1
+
+
+    # If you have to use users and passwords, my condolences
+    $connectionTemplate = "Data Source={0};Integrated Security=SSPI;Initial Catalog={1};Connection Timeout=120"
+    $connectionString = [string]::Format($connectionTemplate, $server, $database)
+    $connection = New-Object System.Data.SqlClient.SqlConnection
+    $connection.ConnectionString = $connectionString
+ 
+    $command = New-Object System.Data.SqlClient.SqlCommand
+    $command.CommandText = $query
+    $command.Connection = $connection 
+
+
+    $SqlAdapter = New-Object System.Data.SqlClient.SqlDataAdapter
+    $SqlAdapter.SelectCommand = $command
+    $DataSet = New-Object System.Data.DataSet
+    $SqlAdapter.Fill($DataSet)
+
+
+    $connection.Close()
+ 
+    # dump the data to a csv
+    # http://technet.microsoft.com/en-us/library/ee176825.aspx
+    #$DataSet.Tables[0] | Export-Csv $extractFile -Append -NoTypeInformation
+
+
+    $dt = $DataSet.Tables[0] | select server_name, database_name, table_name, column_name, data_type, length, last_value, percentLeft, RunDate | Out-DataTable
+    Write-DataTable -ServerInstance $FDDBAServer -Database 'FDDBA' -TableName 'IdentityStatus' -Data $dt 
 
 
 
-
-
-
-
-
-
-
-
-
+}
+ 
+$dr.Close()
+$sconn.Close()
