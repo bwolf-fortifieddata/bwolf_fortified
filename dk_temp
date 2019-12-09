@@ -1,4 +1,4 @@
-Import-Module D:\FD_Posh\SQLDataModules.psm1
+-Module D:\FD_Posh\SQLDataModules.psm1
 
 $CentralManagementServer = “NJ1PRDWITNESS02”;
 $FDDBAServer = “NJ1PRDITDB01”;
@@ -8,157 +8,170 @@ $datetime = (get-date).ToString("yyyyMMdd_HHmmss");
 $extractFile = @"
 C:\posh\logshipping_$datetime.csv
 "@
+
+<#################################################################################################
+##
+#################################################################################################>
+
+        $sconn = new-object System.Data.SqlClient.SqlConnection(“server=$CentralManagementServer;Trusted_Connection=true”);
  
-$sconn = new-object System.Data.SqlClient.SqlConnection(“server=$CentralManagementServer;Trusted_Connection=true”);
+        $q = “
+        select  s.name from [msdb].[dbo].[sysmanagement_shared_registered_servers] s
+                join [msdb].[dbo].[sysmanagement_shared_server_groups] g on g.server_group_id = s.server_group_id
+                join [msdb].[dbo].[sysmanagement_shared_server_groups] p on p.server_group_id = g.parent_id
+        where   p.name <> 'APPLICATIONS'
+                and s.name not in ('NJ1DEVGENAPP01', 'NJ1UATRISEDB01')
+        order   by s.name --where name like '%PRD%';
+        ”
  
-$q = “select s.name from [msdb].[dbo].[sysmanagement_shared_registered_servers] s
-join [msdb].[dbo].[sysmanagement_shared_server_groups] g on g.server_group_id = s.server_group_id
-join [msdb].[dbo].[sysmanagement_shared_server_groups] p on p.server_group_id = g.parent_id
-where p.name <> 'APPLICATIONS'
-and s.name not in ('NJ1DEVGENAPP01', 'NJ1UATRISEDB01')
-order by s.name --where name like '%PRD%';”
+        $sconn.Open()
+        $cmd = new-object System.Data.SqlClient.SqlCommand ($q, $sconn);
+        $cmd.CommandTimeout = 0;
+        $dr = $cmd.ExecuteReader();
+
+        Invoke-Sqlcmd -ServerInstance $FDDBAServer -Database 'FDDBA' "delete from IdentityStatus";
+
+<#################################################################################################
+##
+#################################################################################################>
  
-$sconn.Open()
-$cmd = new-object System.Data.SqlClient.SqlCommand ($q, $sconn);
-$cmd.CommandTimeout = 0;
-$dr = $cmd.ExecuteReader();
+while   ($dr.Read())
+        {
+        $ServerName = $dr.GetValue(0);
+        $server = $ServerName;
+        $database = 'master';
+        
+        if      (Test-Connection -ComputerName $server -Quiet
+                {
 
-Invoke-Sqlcmd -ServerInstance $FDDBAServer -Database 'FDDBA' "delete from IdentityStatus";
+                           
+                #$sqlQueryText = “select @@servername as servername, @@version as version”
+                write-host $ServerName
 
- 
-while ($dr.Read()) {
-$ServerName = $dr.GetValue(0);
-$server = $ServerName;
-$database = 'master';
+                $sqlQueryText = "
+                /* Define how close we are to the value limit
+                before we start throwing up the red flag.
+                The higher the value, the closer to the limit.
+                */
+                Declare @threshold decimal(3,2);
+                SET     @threshold = .50;
+                set     nocount on;
+                                 
+                /* Create a temp table */
+                Create  Table #identityStatus
+                        (
+                        database_name           varchar(128)    ,
+                        table_name              varchar(128)    ,
+                        column_name             varchar(128)    ,
+                        data_type               varchar(128)    ,
+                        [length]                tinyint         ,
+                        last_value              numeric(38,0)   ,
+                        max_value               numeric(38,0)
+                        );
 
-   
-     #$sqlQueryText = “select @@servername as servername, @@version as version”
-     write-host $ServerName
+                CREATE TABLE #DataTypeMaxValue (DataType varchar(50), MaxValue numeric(38,0), [Length] tinyint)
 
-     $sqlQueryText = "/* Define how close we are to the value limit
-   before we start throwing up the red flag.
-   The higher the value, the closer to the limit. */
-Declare @threshold decimal(3,2);
-SET @threshold = .50;
-set nocount on;
- 
-/* Create a temp table */
-Create Table #identityStatus
-(
-      database_name     varchar(128)
-    , table_name        varchar(128)
-    , column_name       varchar(128)
-    , data_type         varchar(128)
-	, [length]			tinyint
-    , last_value        numeric(38,0)
-    , max_value         numeric(38,0)
-);
+                INSERT INTO #DataTypeMaxValue VALUES   ('tinyint' , 255, NULL)
+                INSERT INTO #DataTypeMaxValue VALUES   ('smallint' , 32767, NULL)
+                INSERT INTO #DataTypeMaxValue VALUES   ('int' , 2147483647, NULL)
+                INSERT INTO #DataTypeMaxValue VALUES   ('bigint' , 9223372036854775807, NULL)
 
-CREATE TABLE #DataTypeMaxValue (DataType varchar(50), MaxValue numeric(38,0), [Length] tinyint)
+                declare @i tinyint
+                set @i=1
+                while @i <= 38
+                begin
+                        insert into #DataTypeMaxValue VALUES ('numeric', REPLICATE('9',@i), @i)
+                        set @i = @i + 1
+                end
 
-INSERT INTO #DataTypeMaxValue VALUES   ('tinyint' , 255, NULL)
-INSERT INTO #DataTypeMaxValue VALUES   ('smallint' , 32767, NULL)
-INSERT INTO #DataTypeMaxValue VALUES   ('int' , 2147483647, NULL)
-INSERT INTO #DataTypeMaxValue VALUES   ('bigint' , 9223372036854775807, NULL)
-
-declare @i tinyint
-set @i=1
-while @i <= 38
-begin
-	insert into #DataTypeMaxValue VALUES ('numeric', REPLICATE('9',@i), @i)
-	set @i = @i + 1
-end
-
-set @i=1
-while @i <= 38
-begin
-	insert into #DataTypeMaxValue VALUES ('decimal', REPLICATE('9',@i), @i)
-	set @i = @i + 1
-end
+                set @i=1
+                while @i <= 38
+                begin
+                        insert into #DataTypeMaxValue VALUES ('decimal', REPLICATE('9',@i), @i)
+                        set @i = @i + 1
+                end
 
 
-/* Use an undocumented command to run a SQL statement
-   in each database on a server */
-Execute sp_msforeachdb '
-    Use [?];
-    Insert Into #identityStatus
-    Select ''?'' As [database_name]
-        , Object_Name(id.object_id, DB_ID(''?'')) As [table_name]
-        , id.name As [column_name]
-        , t.name As [data_type]
-		, m.[Length]
-		, cast(id.last_value as numeric(38,0))
-		, m.MaxValue
-    From sys.identity_columns  As id (nolock)
-    Join sys.types As t (nolock)
-        On id.system_type_id = t.system_type_id
-	left join #DataTypeMaxValue m on 
-		m.DataType = t.name collate SQL_Latin1_General_CP1_CI_AS and t.name not in (''numeric'', ''decimal'')
-		or
-		m.DataType = t.name collate SQL_Latin1_General_CP1_CI_AS AND (id.precision-id.scale) = m.length and t.name in (''numeric'', ''decimal'')
-    Where id.last_value Is Not Null';
- 
-/* Retrieve our results and format it all prettily */
-Select @@servername as server_name
-	, database_name
-    , table_name
-    , column_name
-    , data_type
-	, [length]
-    , last_value
-    , Case 
-        When last_value < 0 Then 100
-        Else (1 - Cast(last_value As float(4)) / max_value) * 100 
-      End As [percentLeft]
-	, getdate() as RunDate
-From #identityStatus
-where Cast(last_value As float(4)) / max_value >= @threshold
-Order By percentLeft;
- 
-/* Clean up after ourselves */
-Drop Table #identityStatus;
-Drop Table #DataTypeMaxValue
+                /* Use an undocumented command to run a SQL statement
+                   in each database on a server */
+                Execute sp_msforeachdb '
+                    Use [?];
+                    Insert Into #identityStatus
+                    Select ''?'' As [database_name]
+                        , Object_Name(id.object_id, DB_ID(''?'')) As [table_name]
+                        , id.name As [column_name]
+                        , t.name As [data_type]
+                                , m.[Length]
+                                , cast(id.last_value as numeric(38,0))
+                                , m.MaxValue
+                    From sys.identity_columns  As id (nolock)
+                    Join sys.types As t (nolock)
+                        On id.system_type_id = t.system_type_id
+                        left join #DataTypeMaxValue m on 
+                                m.DataType = t.name collate SQL_Latin1_General_CP1_CI_AS and t.name not in (''numeric'', ''decimal'')
+                                or
+                                m.DataType = t.name collate SQL_Latin1_General_CP1_CI_AS AND (id.precision-id.scale) = m.length and t.name in (''numeric'', ''decimal'')
+                    Where id.last_value Is Not Null';
+                 
+                /* Retrieve our results and format it all prettily */
+                Select @@servername as server_name
+                        , database_name
+                    , table_name
+                    , column_name
+                    , data_type
+                        , [length]
+                    , last_value
+                    , Case 
+                        When last_value < 0 Then 100
+                        Else (1 - Cast(last_value As float(4)) / max_value) * 100 
+                      End As [percentLeft]
+                        , getdate() as RunDate
+                From #identityStatus
+                where Cast(last_value As float(4)) / max_value >= @threshold
+                Order By percentLeft;
+                 
+                /* Clean up after ourselves */
+                Drop Table #identityStatus;
+                Drop Table #DataTypeMaxValue
 
-"
- 
- 
-     $query = $sqlQueryText;
+                "
+                 
+                 
+                     $query = $sqlQueryText;
 
-    
-     $selectResult=Invoke-Sqlcmd -ServerInstance $ServerName -Query $sqlQueryText
-     #[string]$a=$selectResult.column1
-
-
-    # If you have to use users and passwords, my condolences
-    $connectionTemplate = "Data Source={0};Integrated Security=SSPI;Initial Catalog={1};Connection Timeout=120"
-    $connectionString = [string]::Format($connectionTemplate, $server, $database)
-    $connection = New-Object System.Data.SqlClient.SqlConnection
-    $connection.ConnectionString = $connectionString
- 
-    $command = New-Object System.Data.SqlClient.SqlCommand
-    $command.CommandText = $query
-    $command.Connection = $connection 
+                    
+                     $selectResult=Invoke-Sqlcmd -ServerInstance $ServerName -Query $sqlQueryText
+                     #[string]$a=$selectResult.column1
 
 
-    $SqlAdapter = New-Object System.Data.SqlClient.SqlDataAdapter
-    $SqlAdapter.SelectCommand = $command
-    $DataSet = New-Object System.Data.DataSet
-    $SqlAdapter.Fill($DataSet)
+                    # If you have to use users and passwords, my condolences
+                    $connectionTemplate = "Data Source={0};Integrated Security=SSPI;Initial Catalog={1};Connection Timeout=120"
+                    $connectionString = [string]::Format($connectionTemplate, $server, $database)
+                    $connection = New-Object System.Data.SqlClient.SqlConnection
+                    $connection.ConnectionString = $connectionString
+                 
+                    $command = New-Object System.Data.SqlClient.SqlCommand
+                    $command.CommandText = $query
+                    $command.Connection = $connection 
 
 
-    $connection.Close()
- 
-    # dump the data to a csv
-    # http://technet.microsoft.com/en-us/library/ee176825.aspx
-    #$DataSet.Tables[0] | Export-Csv $extractFile -Append -NoTypeInformation
+                    $SqlAdapter = New-Object System.Data.SqlClient.SqlDataAdapter
+                    $SqlAdapter.SelectCommand = $command
+                    $DataSet = New-Object System.Data.DataSet
+                    $SqlAdapter.Fill($DataSet)
 
 
-    $dt = $DataSet.Tables[0] | select server_name, database_name, table_name, column_name, data_type, length, last_value, percentLeft, RunDate | Out-DataTable
-    Write-DataTable -ServerInstance $FDDBAServer -Database 'FDDBA' -TableName 'IdentityStatus' -Data $dt 
+                    $connection.Close()
+                 
+                    # dump the data to a csv
+                    # http://technet.microsoft.com/en-us/library/ee176825.aspx
+                    #$DataSet.Tables[0] | Export-Csv $extractFile -Append -NoTypeInformation
 
 
-
-}
+                    $dt = $DataSet.Tables[0] | select server_name, database_name, table_name, column_name, data_type, length, last_value, percentLeft, RunDate | Out-DataTable
+                    Write-DataTable -ServerInstance $FDDBAServer -Database 'FDDBA' -TableName 'IdentityStatus' -Data $dt 
+                }
+        }
  
 $dr.Close()
 $sconn.Close()
