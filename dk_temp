@@ -1,290 +1,58 @@
-/*
-set     statistics time, io on
+declare @dbName varchar(256)
 
-EXEC #tmp_Pricing_GetPricingWorkflow 'November 2019'
+select  @dbname = 'UsageReporting'
 
+select  @dbname = nullif(@dbname, '')
 
-EXEC Pricing.GetPricingWorkflow 'November 2019'
-*/
+/*************************************************************************************************
+**view recovery model
+*************************************************************************************************/
+	create	table #DBRecovery
+		(
+		db_name		nvarchar(128),
+		recovery	nvarchar(30)
+		)
 
---[Pricing].[GetPricingWorkflow] 'October 2019',1
---[Pricing].[GetPricingWorkflowTest] '11/30/2019',1
---[Pricing].[GetPricingWorkflow] '11/30/2019',1
----[Pricing].[GetMonthEndClosingStatusByFund] '2019-10-31 00:00:00.000','630BT' 
-if      object_id('tempdb..#tmp_Pricing_GetPricingWorkflow', 'P') is not null
-        drop    procedure #tmp_Pricing_GetPricingWorkflow
-go
-create  PROCEDURE #tmp_Pricing_GetPricingWorkflow
-        @Asofdate       DATETIME        = null ,
-        @IsException    int             = 0  
+	Insert	Into #DBRecovery
+	Exec sp_MSforeachdb 'SELECT ''?'', CAST(DATABASEPROPERTYEX(''?'', ''Recovery'') as nvarchar(30))'
 
-AS  
-BEGIN  
+	select	*
+	from	#DBRecovery
+        where   [db_name] = isnull(@dbName, [db_name])
 
-if (@Asofdate is null)
-begin
-set @Asofdate=CONVERT(DATETIME,EOMONTH(DATEADD(MM,-1,GETDATE()))) 
-end
-else
-begin
-	set @Asofdate=CONVERT(DATETIME,EOMONTH(@AsofDate))
-end
-
-DECLARE @AsofDateDatetime DATETIME
-SET @AsofDate=CONVERT(DATETIME,EOMONTH(@AsofDate))
-SET @AsofDateDatetime=DATEADD(SS,-1,DATEADD(DD,1,CONVERT(DATETIME,EOMONTH(@AsofDate))))
-
-declare @AsOfDateBegin datetime
-select  @AsOfDateBegin = Dateadd(day, 1, EOMONTH(@asofDate, -1))
-
-declare @nextMonth datetime
-select  @nextMonth = dateadd(dd, 1, @asOfDate)
-
-
-
-CREATE TABLE #TBData
-(
-	Fund Varchar(200),
-	AltId2 INT,
-	ClosingBalance NUMERIC(30,8),
-	IsPriced BIT,
-	IsSignOff BIT,
-	IsZeroPosition BIT,
-	PriceDate Datetime,
-	SecurityType Varchar(200)
-)
-
-
-SELECT DK_TST_NAME SecurityType
-INTO #TmpSecurityType 
-FROM DK_DB_SECMASTER..DK_TBL_SEC_TYPE ST
-WHERE ST.DK_TST_NAME IN ( 'CONVERTIBLE BOND TOTAL RETURN SWAP', 'CONVERTIBLE PREFERRED STOCK TOTAL RETURN SWAP',
-            'CORPORATE BOND TOTAL RETURN SWAP', 'EQUITY INDEX TOTAL RETURN SWAP', 'EQUITY TOTAL RETURN SWAP',
-            'MANDATORY CONVERTIBLE BOND TOTAL RETURN SWAP', 'PREFERRED STOCK TOTAL RETURN SWAP', 'RIGHTS TOTAL RETURN SWAP',
-            'WARRANTS TOTAL RETURN SWAP', 'EQUITY FUTURE TOTAL RETURN SWAP') 
-
----------------------------------------------------Get All TB Investment-------------------------------------
---INSERT #TBData(Fund,AltId2,ClosingBalance)
---SELECT DISTINCT PortfolioCode,AltId2,SUM(ClosingBalance) ClosingBalance
---FROM  ODS.FundAccounting.TrialBalanceView PO
---WHERE PO.PeriodEndDate=@AsofDateDatetime
---AND Sect IN ('Assets','Liabilities')  
---AND Cat IN ('Investments Long','Investments Short')
---and [Description] != 'Accrued Interest'
---GROUP BY PortfolioCode,AltId2
---HAVING convert(bigint,SUM(ClosingBalance))  !=0 
-
-
-
-select  t.Positionid, T.[ClosingBalance], t.PeriodStartDate, t.PeriodENDDate
-into    #tmp_trialBalance
-FROM    [FundAccounting].[TrialBalance] T
-where   t.Sect IN ('Assets','Liabilities')  
-        AND t.Cat IN ('Investments Long','Investments Short')
-        and t.[Description]     != 'Accrued Interest'
-        and t.PeriodEndDate     = @AsofDateDatetime--'2019-11-30 23:59:59.000'
-        and t.PeriodStartDate   = @AsOfDateBegin--'2019-11-01 00:00:00.000'
-
-
-INSERT  into #TBData(Fund,AltId2,ClosingBalance)
-SELECT  P.[PortfolioCode]       ,
-        P.[AltId2]              ,
-        SUM(t.ClosingBalance)
-from    #tmp_trialBalance t
-        inner JOIN FundAccounting.Position P ON T.PositionId = P.Id
-GROUP   BY p.PortfolioCode, p.AltId2
-HAVING  convert(bigint,SUM(t.ClosingBalance))  !=0 
-
-
-
-DELETE #TBData
-where AltId2 in (SELECT SecId from Pricing.vInvestmentInTickerFund where PricingAutomation='Automatic' 
-					and RelationshipType in ('Lookthrough NAV Pickup - Portfolio-Strategy level','Lookthrough NAV Pickup - Strategy level')
-					UNION
-					SELECT SecId  from Pricing.vInvestmentInTickerFund where PricingAutomation='Manual' 
-					UNION
-					SELECT DK_TS_ID FROM DK_DB_SECMASTER..DK_VW_FLATVIEW FV WHERE FV.DK_TST_NAME IN (SELECT SecurityType FROM Pricing.PricingWorkflowExcludedSecurityType))
-
-
-UPDATE t
-set SecurityType=fv.DK_TST_NAME
-FROM #TBData t
-JOIN DK_DB_SECMASTER..DK_VW_FLATVIEW fv on t.AltId2=DK_TS_ID
-
------------------------------------------------------Update Swap Investment----------------------------
-
-UPDATE #TBData
-SET IsPriced=1,
-PriceDate=PA.DK_TPA_GENEVA_LOAD_DATE,
-IsSignOff=1
-FROM #TBData TB
-LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW FV ON FV.DK_TS_ID=TB.AltId2
-LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW UFV ON FV.ATR_DK_UNDERLYING_SEC=UFV.DK_TS_NAME
---JOIN DK_DB_PNL_MONITOR..DKG_TBL_EOD_PRICING EP ON CONVERT(VARCHAR,UFV.DK_TS_ID)=EP.DKG_TBLEP_INVESTMENT_ID
-INNER JOIN DK_DB_PNL_MONITOR..[DK_TBL_PRICING_APPROVAL] PA on PA.DK_TPA_ALTID=UFV.DK_TS_ID and DK_TPA_SIGNEDOFFSTATUS='SignOff'
-WHERE PA.DK_TPA_PRICEDATE=@AsofDate
-AND FV.DK_TST_NAME IN (SELECT SecurityType FROM #TmpSecurityType) 
-
---UPDATE #TBData
---SET IsSignOff=1
---FROM #TBData TB
---LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW FV ON FV.DK_TS_ID=TB.AltId2
---LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW UFV ON FV.ATR_DK_UNDERLYING_SEC=UFV.DK_TS_NAME
-----JOIN DK_DB_PNL_MONITOR..DKG_TBL_EOD_PRICING EP ON CONVERT(VARCHAR,UFV.DK_TS_ID)=EP.DKG_TBLEP_INVESTMENT_ID
---INNER JOIN DK_DB_PNL_MONITOR..[DK_TBL_PRICING_APPROVAL] PA on PA.DK_TPA_ALTID=UFV.DK_TS_ID and PA.DK_TPA_PRICEDATE=EP.DK_TBLEP_PRICE_DATE and PA.DK_TPA_SIGNEDOFFSTATUS='SignOff'
---WHERE PA.DK_TPA_PRICEDATE=@AsofDate
---AND FV.DK_TST_NAME IN (SELECT SecurityType FROM #TmpSecurityType) 
-
-
-UPDATE #TBData
-SET IsPriced=1,
-PriceDate=PA.DK_TPA_GENEVA_LOAD_DATE,
-IsSignOff=1
-FROM #TBData TB
-LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW FV ON FV.DK_TS_ID=TB.AltId2
---JOIN DK_DB_PNL_MONITOR..DKG_TBL_EOD_PRICING EP ON CONVERT(VARCHAR,TB.AltId2)=EP.DKG_TBLEP_INVESTMENT_ID
-INNER JOIN DK_DB_PNL_MONITOR..[DK_TBL_PRICING_APPROVAL] PA on PA.DK_TPA_ALTID=TB.AltId2 and PA.DK_TPA_SIGNEDOFFSTATUS='SignOff'
-WHERE PA.DK_TPA_PRICEDATE=@AsofDate
---AND ISNULL(IsPriced,0)=0
-AND FV.DK_TST_NAME NOT IN (SELECT SecurityType FROM #TmpSecurityType) 
-
---UPDATE #TBData
---SET IsSignOff=1
---FROM #TBData TB
---LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW FV ON FV.DK_TS_ID=TB.AltId2
---JOIN DK_DB_PNL_MONITOR..DKG_TBL_EOD_PRICING EP ON CONVERT(VARCHAR,TB.AltId2)=EP.DKG_TBLEP_INVESTMENT_ID
---INNER JOIN DK_DB_PNL_MONITOR..[DK_TBL_PRICING_APPROVAL] PA on PA.DK_TPA_ALTID=TB.AltId2 and PA.DK_TPA_PRICEDATE=EP.DK_TBLEP_PRICE_DATE and DK_TPA_SIGNEDOFFSTATUS='SignOff' 
---WHERE EP.DK_TBLEP_PRICE_DATE=@AsofDate
-----AND ISNULL(IsPriced,0)=0
---AND FV.DK_TST_NAME NOT IN (SELECT SecurityType FROM #TmpSecurityType) 
-
----------------------------------------------------ZERO POSITION--------------------------------------------
-	 --SELECT MD.DKG_TCMD_ALT_ID2 AltID2,SUM(ISNULL(MD.DKG_TCMD_CURRENT_POSITION,0)) DKG_TCMD_CURRENT_POSITION
-	 --INTO #ZEROPOSITION
-	 --FROM DK_DB_APPS.DBO.DKG_TBL_COVP_MANAGER_DETAIL MD
-	 --WHERE MD.DKG_TCMD_AS_OF_DATE=@AsofDate
-	 --GROUP BY DKG_TCMD_ALT_ID2
-	 --HAVING SUM(ISNULL(MD.DKG_TCMD_CURRENT_POSITION,0))=0
-
-	--SELECT AltID2
-	--	 ,SUM(TotalQuantity) TotalQuantity--,CP.PortfolioCode
-
-	--FROM FundAccounting.PositionClosedPeriod CP
-	--WHERE CONVERT(DATE,PeriodEndDate)=@Asofdate
-	--GROUP BY AltID2--,PortfolioCode
-	--HAVING SUM(ISNULL(TotalQuantity,0))=0
-
-
-        SELECT  AltID2,
-                SUM(TotalQuantity) TotalQuantity--,CP.PortfolioCode
-	INTO    #POSITION
-        from    FundAccounting.PositionClosedPeriod
-        where   PeriodEndDate           >= @Asofdate
-                and PeriodEndDate       < @nextMonth
-        group   by AltID2
-        
-
-
-
-	SELECT AltId2,sum(ClosingBalance) ClosingBalance,SecurityType
-	INTO #TBAltIDClosing
-	FROM #TBData TB
-	GROUP BY AltId2,SecurityType
+	drop	table #DBRecovery
 	
+/*************************************************************************************************
+**view backup history
+*************************************************************************************************/
 
-
-	SELECT tb.AltId2,tb.ClosingBalance,ISNULL(pos.TotalQuantity,0) Qty
-	INTO #TBPOS
-	FROM #TBAltIDClosing TB
-	LEFT OUTER JOIN #POSITION POS ON TB.AltId2=POS.AltID2
-	WHERE SecurityType NOT IN (SELECT SecurityType FROM #TmpSecurityType) 
-	
-
-	
-	SELECT tb.AltId2,tb.ClosingBalance,ISNULL(pos.TotalQuantity,0) Qty
-	INTO #TBSWAPPOS
-	FROM #TBAltIDClosing TB
-	JOIN DK_DB_SECMASTER..DK_VW_FLATVIEW F ON F.DK_TS_ID=ALTID2
-	LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW UFV ON F.ATR_DK_UNDERLYING_SEC=UFV.DK_TS_NAME
-	LEFT OUTER JOIN #POSITION POS ON UFV.DK_TS_ID=POS.AltID2
-	WHERE SecurityType IN (SELECT SecurityType FROM #TmpSecurityType) 
-
-	--SELECT AltId2,sum(ClosingBalance) ClosingBalance
-	--INTO #TBZEROINV
-	--FROM #TBData TB
-	--where AltId2 in (select AltID2 from #ZEROPOSITION)
-	--group by AltId2
-	--HAVING convert(bigint,SUM(ClosingBalance)) =0 
-
-	
-	UPDATE TB
-	SET IsPriced=1,
-	IsZeroPosition=1,
-	IsSignOff=1
-	FROM #TBData TB
-	where AltId2 in (select AltId2 from #TBPOS WHERE ClosingBalance=0 AND Qty=0)
-	AND SecurityType NOT IN (SELECT SecurityType FROM #TmpSecurityType) 
-
-
-	UPDATE TB
-	SET IsPriced=1,
-	IsZeroPosition=1,
-	IsSignOff=1
-	FROM #TBData TB
-	WHERE tb.AltId2 IN (select AltId2 from #TBSWAPPOS WHERE ClosingBalance=0 AND Qty=0)
-	AND SecurityType IN (SELECT SecurityType FROM #TmpSecurityType) 
-
-
-	SELECT Distinct T.Fund, @AsofDate PriceDate, max(PriceDate) PostedDateTime
-	FROM #TBData t
-	JOIN DK_DB_SECMASTER..DK_VW_FLATVIEW F ON F.DK_TS_ID=ALTID2
-	JOIN DK_DB_SECMASTER..DK_VW_GENEVA_FLATVIEW GFV ON F.DK_TS_ID=GFV.DK_VGF_TS_ID
-	WHERE ISNULL(IsPriced,0)=1 AND ISNULL(IsSignOff,0)=1
-	AND T.Fund NOT IN (SELECT DISTINCT T.Fund FROM #TBData t WHERE ISNULL(IsSignOff,0)=0 OR ISNULL(IsPriced,0)=0   )
-	GROUP BY t.Fund
-
-	UNION 
-	SELECT Distinct T.Fund, @AsofDate PriceDate, null PostedDateTime
-	FROM #TBData t
-	JOIN DK_DB_SECMASTER..DK_VW_FLATVIEW F ON F.DK_TS_ID=ALTID2
-	JOIN DK_DB_SECMASTER..DK_VW_GENEVA_FLATVIEW GFV ON F.DK_TS_ID=GFV.DK_VGF_TS_ID
-	WHERE (ISNULL(IsSignOff,0)=0 OR ISNULL(IsPriced,0)=0) 
-	GROUP BY t.Fund
-
-	IF @IsException=1
-	BEGIN
-		select t.*, UFV.DK_TS_ID UNDLYSeCID, ufv.DK_TS_NAME,ufv.dk_ts_name,gfv.* 
-		FROM #TBData t
-		JOIN DK_DB_SECMASTER..DK_VW_FLATVIEW F ON F.DK_TS_ID=ALTID2
-		JOIN DK_DB_SECMASTER..DK_VW_GENEVA_FLATVIEW GFV ON F.DK_TS_ID=GFV.DK_VGF_TS_ID
-		LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW UFV ON F.ATR_DK_UNDERLYING_SEC=UFV.DK_TS_NAME
-		--where DK_VGF_TS_ID in(473751,473753)
-		--WHERE ISNULL(IsPriced,0)=0-- AND ISNULL(IsSignOff,0)=1
-		
-	END
-
-	IF @IsException=2
-	BEGIN
-	select DISTINCT  F.DK_TS_ID , GFV.DK_VGF_GENEVA_SEC_ID,F.DK_TST_NAME
-		FROM #TBData t
-		JOIN DK_DB_SECMASTER..DK_VW_FLATVIEW F ON F.DK_TS_ID=ALTID2
-		JOIN DK_DB_SECMASTER..DK_VW_GENEVA_FLATVIEW GFV ON F.DK_TS_ID=GFV.DK_VGF_TS_ID		
-		WHERE ISNULL(T.IsSignOff,0)=0 AND F.DK_TST_NAME NOT IN (SELECT SecurityType FROM #TmpSecurityType) 
-
-		UNION
-
-		select DISTINCT GFV.DK_VGF_TS_ID , GFV.DK_VGF_GENEVA_SEC_ID,UFV.DK_TST_NAME
-		FROM #TBData t
-		JOIN DK_DB_SECMASTER..DK_VW_FLATVIEW F ON F.DK_TS_ID=ALTID2
-		LEFT OUTER JOIN  DK_DB_SECMASTER..DK_VW_FLATVIEW UFV ON F.ATR_DK_UNDERLYING_SEC=UFV.DK_TS_NAME	
-		JOIN DK_DB_SECMASTER..DK_VW_GENEVA_FLATVIEW GFV ON UFV.DK_TS_ID=GFV.DK_VGF_TS_ID	
-		
-		WHERE ISNULL(T.IsSignOff,0)=0 AND F.DK_TST_NAME IN (SELECT SecurityType FROM #TmpSecurityType) 
-
-	END
-
-
-DROP TABLE #TBData
-DROP TABLE #TmpSecurityType
-END
-
+	SELECT	database_name									AS [DBName]			,
+		user_name									AS [UserName]			,
+		cast(backup_size AS decimal(20,2)) / 1048576					AS [BackupSize_MB]		,
+		cast(compressed_backup_size AS decimal(20,2)) / 1048576				AS [Compressed_BackupSize_MB]	,
+		datediff(n,backup_start_date,backup_finish_date)				AS [Duration_Min]		,
+		datediff(dd,backup_finish_date,Getdate())					AS [BackupAge_days]		,
+		backup_finish_date								AS [FinishDate]			,
+		physical_device_name								AS [Location]			,
+		MF.device_type													,
+		case	type
+			when	'D'	then 'Database'
+			when	'I'	then 'Differential Database'
+			when	'L'	then 'Log'
+			when	'F'	then 'File or Filegroup'
+			when	'G'	then 'Differential File'
+			when	'P'	then 'Partial'
+			when	'Q'	then 'Differential Partial'
+		end										as [Backup_Type]		,
+		bs.software_vendor_id												,
+		software_major_version												,
+		software_minor_version												,
+		software_build_version												,
+		recovery_model
+	FROM	master..sysdatabases DB
+		inner JOIN msdb..backupset BS ON DB.name = BS.database_name
+		inner JOIN msdb..backupmediaset MS ON BS.media_set_id = MS.media_set_id
+		inner JOIN msdb..backupmediafamily MF ON BS.media_set_id = MF.media_set_id
+	where	[type] = 'D'
+                and database_name = isnull(@dbName, database_name)
+	order	by backup_finish_date desc
