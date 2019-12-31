@@ -1,50 +1,32 @@
 
+create  index   FD_IX_TrialBalance_PeriodStartDate_PeriodEndDate
+        on      FundAccounting.TrialBalance
+                (
+                PeriodStartDate,
+                PeriodEndDate
+                )
+        include (
+                [ClosingBalance],
+                PositionID
+                )
+        where   Sect IN ('Assets','Liabilities')  
+                AND Cat IN ('Investments Long','Investments Short')
+                and [Description] != 'Accrued Interest'
+        with    (
+                data_compression = page
+                )
 
-set	transaction isolation level read uncommitted
 
-if	object_id('tempdb..#tmp', 'U') is not null
-	drop	table #tmp
-        
-declare @StringPart     varchar(4000) = 'Put your string here'
 
-SELECT	TOP 25  SUBSTRING(b.text, (a.statement_start_offset/2) + 1, 
-		((CASE statement_end_offset
-			WHEN -1 THEN DATALENGTH(b.text)
-			ELSE	a.statement_end_offset
-		END -  a.statement_start_offset)/2) + 1)				AS statement_text	,
-	c.query_plan												,
-	a.execution_count								AS 'ExecutionCount'	,
-	a.execution_count/DATEDIFF(SECOND, 	a.creation_time,
-	GETDATE())									AS 'Calls_Per_Second',
-	a.total_worker_time/a.execution_count						AS 'AvgCPUTime'		,
-	a.total_worker_time								AS 'TotalCPUTime'	,
-	a.total_elapsed_time/a.execution_count						AS 'AvgElapsedTime'	,
-	a.max_logical_reads											,
-	a.max_logical_writes											,
-	a.total_physical_reads											,
-	db_name(c.dbid)									AS dbName
-into	#tmp
-FROM	sys.dm_exec_query_stats a  
-	CROSS APPLY sys.dm_exec_sql_text (a.sql_handle) AS b  
-	CROSS APPLY sys.dm_exec_query_plan (a.plan_handle) AS c  
---where   a.sql_handle = 0x02000000c1f8af0617d3cf11895ddeed216528805654a84c0000000000000000000000000000000000000000
-where   b.text like '%' + @StringPart + '%'
-ORDER	BY total_worker_time DESC
-option	(recompile)
-
-select	@@servername
-
-select	replace(replace(replace(statement_text, char(13), ' '), char(10), ' '), '	', '') as statementText		,
-	query_plan,
-	ExecutionCount													,
-	Calls_per_second												,
-	AvgCPUTime													,
-	TotalCPUTime													,
-	AvgElapsedTime													,
-	max_logical_reads												,
-	max_logical_writes												,
-	total_physical_reads												,
-	dbname                                                                                                          ,
-        statement_text
-from	#tmp
-option  (recompile)
+create  index   FD_IX_PositionClosedPeriod_PeriodEndDate
+        on      FundAccounting.PositionClosedPeriod
+                (
+                PeriodEndDate,
+                AltID2
+                )
+        include (
+                TotalQuantity
+                )
+        with    (
+                data_compression = page
+                )
