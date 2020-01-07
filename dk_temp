@@ -1,7 +1,1 @@
-        exec    sp_article_validation
-                @publication            = 'RiskMgmt__ODS__SMALL1'       ,
-                @article                = 'Aum'                         ,
-                @rowcount_only          = 2                             ,
-                @full_or_fast           = 0                             ,
-                @shutdown_agent         = 0                             ,
-                @subscription_level     = 0
+https://securelogin.dkpartners.com/qr
