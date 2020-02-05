@@ -1,47 +1,65 @@
-use     msdb
-go
-if      object_id('tempdb..#tmp', 'U') is not null
-        drop    table #tmp
-go
-if      object_id('tempdb..#tmp_results', 'U') is not null
-        drop    table #tmp_results
-go
-select  g.server_group_id                               ,
-        g.parent_id                                     ,
-        cast(g.name as varchar(512))    as 'gname'      ,
-        cast(g.name as varchar(512))    as 'root_name'
-into    #tmp
-FROM    [msdb].[dbo].[sysmanagement_shared_server_groups] g
-
-;with   #rcte
-        (
-        server_group_id         ,
-        parent_id               ,
-        gname                   ,
-        root_name
-        )
-        as
-        (
-        select  g.server_group_id                                                                       ,
-                g.parent_id                                                                             ,
-                g.gname                                                                                 ,
-                g.root_name
-        FROM    #tmp g
-        where   g.parent_id is null
-        union   all
-        select  g.server_group_id                                                                       ,
-                g.parent_id                                                                             ,
-                g.gname                                                                                 ,
-                cast((r.root_name + ' > ' + g.root_name) as varchar(512))       as 'parent_name'
-        FROM    #tmp g
-                inner join #rcte r on r.server_group_id = g.parent_id
-        )
-select  *
-into    #tmp_results
-from    #rcte
-
-
-select  @@SERVERNAME as management_server, r.root_name, s.name as server_name
-from    #tmp_results r
-        inner join [sysmanagement_shared_registered_servers] s on s.server_group_id = r.server_group_id
-order   by r.root_name
+name	name
+dbo	DKG_TBL_INDEX_REBUILD_TABLE_LST
+dbo	DKG_TBL_SF_ASSET_AST
+dbo	DKG_TBL_SF_ASSET_AST_PERFORMANCE
+dbo	DKG_TBL_SF_ASSET_AST_PERFORMANCE_CORELOGIC
+dbo	DKG_TBL_SF_BROKEREMAILS_BEM
+dbo	DKG_TBL_SF_CLO_LOAN_PRICE_HEATMAP
+dbo	DKG_TBL_SF_COLLATERALGROUP_GRP
+dbo	DKG_TBL_SF_COLLATERALGROUP_GRP_PERFORMANCE
+dbo	DKG_TBL_SF_CROSSREF_XRF
+dbo	DKG_TBL_SF_DEAL_DEA
+dbo	DKG_TBL_SF_DEAL_DEA_PERFORMANCE
+dbo	DKG_TBL_SF_DEALNEWS_DNS
+dbo	DKG_TBL_SF_EXPOSURECACHE_EXP
+dbo	DKG_TBL_SF_EXPOSURECACHE_EXP_DAILY
+dbo	DKG_TBL_SF_HEDGESANDCE_HCE
+dbo	DKG_TBL_SF_HEDGESANDCE_HCE_PERFORMANCE
+dbo	DKG_TBL_SF_LOAN_ID
+dbo	DKG_TBL_SF_LOANXFACILITY_FAC
+dbo	DKG_TBL_SF_LOANXRECUPDATES_RCU
+dbo	DKG_TBL_SF_LOANXVALUATION_LXV
+dbo	DKG_TBL_SF_LOANXVALUATION_LXV_BACKFILL
+dbo	DKG_TBL_SF_PRICES_PRC
+dbo	DKG_TBL_SF_PROPERTY_PPT
+dbo	DKG_TBL_SF_PROPERTY_PPT_PERFORMANCE
+dbo	DKG_TBL_SF_STAGING_CF
+dbo	DKG_TBL_SF_STAGING_CLO_DEAL
+dbo	DKG_TBL_SF_STAGING_CLO_FIXINDUSTRIES
+dbo	DKG_TBL_SF_STAGING_CLO_LOAN
+dbo	DKG_TBL_SF_STAGING_CLO_TRADING_ACTIVITY
+dbo	DKG_TBL_SF_STAGING_CLO_TRANCHE
+dbo	DKG_TBL_SF_STAGING_PNI
+dbo	DKG_TBL_SF_STAGING_PNL
+dbo	DKG_TBL_SF_STAGING_PTF
+dbo	DKG_TBL_SF_STAGING_TRADES
+dbo	DKG_TBL_SF_TRANCHE_TRC
+dbo	DKG_TBL_SF_TRANCHE_TRC_PERFORMANCE
+dbo	DKG_TBL_SF_TRIGGERS_TRG
+dbo	DKG_TBL_SF_TRIGGERS_TRG_PERFORMANCE
+dbo	DKG_TBL_SF_TRUSTEE_BOND
+dbo	DKG_TBL_SF_TRUSTEE_BOND_ALERT
+dbo	DKG_TBL_SF_TRUSTEE_LOAN
+dbo	DKG_TBL_SF_TRUSTEE_LOAN_ALERT
+SFW	DKG_TBL_SF_APPINFO_APF
+SFW	DKG_TBL_SF_ASSETASSUMPTIONSDETAILS_ASD
+SFW	DKG_TBL_SF_ASSETASSUMPTIONSSET_ASP
+SFW	DKG_TBL_SF_DEALASSUMPTIONS_DSP
+SFW	DKG_TBL_SF_DEALIMPORTLIST_DIL
+SFW	DKG_TBL_SF_FLAGBANDS_FBD
+SFW	DKG_TBL_SF_FLAGDEFINITIONS_FLG
+SFW	DKG_TBL_SF_FLAGITEMS_FLI
+SFW	DKG_TBL_SF_IMPLIEDYIELDANALYSIS_IYA
+SFW	DKG_TBL_SF_IMPLIEDYIELDANALYSISDATA_IYD
+SFW	DKG_TBL_SF_JOBS_JBS
+SFW	DKG_TBL_SF_PROCESSEDJOBS_PJB
+SFW	DKG_TBL_SF_REPORTFILTERS_RFS
+SFW	DKG_TBL_SF_REPORTITEMS_RIT
+SFW	DKG_TBL_SF_REPORTSETTINGS_EXS
+SFW	DKG_TBL_SF_SCENARIOS_SNO
+SFW	DKG_TBL_SF_SCENARIOSDETAILS_SND
+SFW	DKG_TBL_SF_TRADESMANAGEMENT_TDM
+SFW	DKG_TBL_SF_TRANCHECASHFLOW_TCF
+SFW	DKG_TBL_SF_TRANCHEMETRICS_OVERRIDES
+SFW	DKG_TBL_SF_TRANCHEMETRICS_TRM
+SFW	DKG_TBL_SF_TRUSTEE_MAPIDS
