@@ -1,65 +1,141 @@
-name	name
-dbo	DKG_TBL_INDEX_REBUILD_TABLE_LST
-dbo	DKG_TBL_SF_ASSET_AST
-dbo	DKG_TBL_SF_ASSET_AST_PERFORMANCE
-dbo	DKG_TBL_SF_ASSET_AST_PERFORMANCE_CORELOGIC
-dbo	DKG_TBL_SF_BROKEREMAILS_BEM
-dbo	DKG_TBL_SF_CLO_LOAN_PRICE_HEATMAP
-dbo	DKG_TBL_SF_COLLATERALGROUP_GRP
-dbo	DKG_TBL_SF_COLLATERALGROUP_GRP_PERFORMANCE
-dbo	DKG_TBL_SF_CROSSREF_XRF
-dbo	DKG_TBL_SF_DEAL_DEA
-dbo	DKG_TBL_SF_DEAL_DEA_PERFORMANCE
-dbo	DKG_TBL_SF_DEALNEWS_DNS
-dbo	DKG_TBL_SF_EXPOSURECACHE_EXP
-dbo	DKG_TBL_SF_EXPOSURECACHE_EXP_DAILY
-dbo	DKG_TBL_SF_HEDGESANDCE_HCE
-dbo	DKG_TBL_SF_HEDGESANDCE_HCE_PERFORMANCE
-dbo	DKG_TBL_SF_LOAN_ID
-dbo	DKG_TBL_SF_LOANXFACILITY_FAC
-dbo	DKG_TBL_SF_LOANXRECUPDATES_RCU
-dbo	DKG_TBL_SF_LOANXVALUATION_LXV
-dbo	DKG_TBL_SF_LOANXVALUATION_LXV_BACKFILL
-dbo	DKG_TBL_SF_PRICES_PRC
-dbo	DKG_TBL_SF_PROPERTY_PPT
-dbo	DKG_TBL_SF_PROPERTY_PPT_PERFORMANCE
-dbo	DKG_TBL_SF_STAGING_CF
-dbo	DKG_TBL_SF_STAGING_CLO_DEAL
-dbo	DKG_TBL_SF_STAGING_CLO_FIXINDUSTRIES
-dbo	DKG_TBL_SF_STAGING_CLO_LOAN
-dbo	DKG_TBL_SF_STAGING_CLO_TRADING_ACTIVITY
-dbo	DKG_TBL_SF_STAGING_CLO_TRANCHE
-dbo	DKG_TBL_SF_STAGING_PNI
-dbo	DKG_TBL_SF_STAGING_PNL
-dbo	DKG_TBL_SF_STAGING_PTF
-dbo	DKG_TBL_SF_STAGING_TRADES
-dbo	DKG_TBL_SF_TRANCHE_TRC
-dbo	DKG_TBL_SF_TRANCHE_TRC_PERFORMANCE
-dbo	DKG_TBL_SF_TRIGGERS_TRG
-dbo	DKG_TBL_SF_TRIGGERS_TRG_PERFORMANCE
-dbo	DKG_TBL_SF_TRUSTEE_BOND
-dbo	DKG_TBL_SF_TRUSTEE_BOND_ALERT
-dbo	DKG_TBL_SF_TRUSTEE_LOAN
-dbo	DKG_TBL_SF_TRUSTEE_LOAN_ALERT
-SFW	DKG_TBL_SF_APPINFO_APF
-SFW	DKG_TBL_SF_ASSETASSUMPTIONSDETAILS_ASD
-SFW	DKG_TBL_SF_ASSETASSUMPTIONSSET_ASP
-SFW	DKG_TBL_SF_DEALASSUMPTIONS_DSP
-SFW	DKG_TBL_SF_DEALIMPORTLIST_DIL
-SFW	DKG_TBL_SF_FLAGBANDS_FBD
-SFW	DKG_TBL_SF_FLAGDEFINITIONS_FLG
-SFW	DKG_TBL_SF_FLAGITEMS_FLI
-SFW	DKG_TBL_SF_IMPLIEDYIELDANALYSIS_IYA
-SFW	DKG_TBL_SF_IMPLIEDYIELDANALYSISDATA_IYD
-SFW	DKG_TBL_SF_JOBS_JBS
-SFW	DKG_TBL_SF_PROCESSEDJOBS_PJB
-SFW	DKG_TBL_SF_REPORTFILTERS_RFS
-SFW	DKG_TBL_SF_REPORTITEMS_RIT
-SFW	DKG_TBL_SF_REPORTSETTINGS_EXS
-SFW	DKG_TBL_SF_SCENARIOS_SNO
-SFW	DKG_TBL_SF_SCENARIOSDETAILS_SND
-SFW	DKG_TBL_SF_TRADESMANAGEMENT_TDM
-SFW	DKG_TBL_SF_TRANCHECASHFLOW_TCF
-SFW	DKG_TBL_SF_TRANCHEMETRICS_OVERRIDES
-SFW	DKG_TBL_SF_TRANCHEMETRICS_TRM
-SFW	DKG_TBL_SF_TRUSTEE_MAPIDS
+USE [master]
+GO
+CREATE LOGIN [DKP\qAll - Risk Management] FROM WINDOWS WITH DEFAULT_DATABASE=[DK_DB_STRUCTURED_CREDIT]
+GO
+USE [DK_DB_STRUCTURED_CREDIT]
+GO
+CREATE USER [DKP\qAll - Risk Management] FOR LOGIN [DKP\qAll - Risk Management]
+GO
+
+USE     DK_DB_STRUCTURED_CREDIT
+
+GO
+
+grant select on [dbo].[DKG_TBL_INDEX_REBUILD_TABLE_LST] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_ASSET_AST] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_ASSET_AST_PERFORMANCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_ASSET_AST_PERFORMANCE_CORELOGIC] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_BROKEREMAILS_BEM] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_CLO_LOAN_PRICE_HEATMAP] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_COLLATERALGROUP_GRP] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_COLLATERALGROUP_GRP_PERFORMANCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_CROSSREF_XRF] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_DEAL_DEA] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_DEAL_DEA_PERFORMANCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_DEALNEWS_DNS] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_EXPOSURECACHE_EXP] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_EXPOSURECACHE_EXP_DAILY] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_HEDGESANDCE_HCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_HEDGESANDCE_HCE_PERFORMANCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_LOAN_ID] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_LOANXFACILITY_FAC] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_LOANXRECUPDATES_RCU] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_LOANXVALUATION_LXV] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_LOANXVALUATION_LXV_BACKFILL] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_PRICES_PRC] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_PROPERTY_PPT] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_PROPERTY_PPT_PERFORMANCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_CF] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_CLO_DEAL] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_CLO_FIXINDUSTRIES] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_CLO_LOAN] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_CLO_TRADING_ACTIVITY] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_CLO_TRANCHE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_PNI] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_PNL] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_PTF] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_STAGING_TRADES] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRANCHE_TRC] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRANCHE_TRC_PERFORMANCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRIGGERS_TRG] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRIGGERS_TRG_PERFORMANCE] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRUSTEE_BOND] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRUSTEE_BOND_ALERT] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRUSTEE_LOAN] to [DKP\qAll - Risk Management]
+GO
+grant select on [dbo].[DKG_TBL_SF_TRUSTEE_LOAN_ALERT] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_APPINFO_APF] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_ASSETASSUMPTIONSDETAILS_ASD] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_ASSETASSUMPTIONSSET_ASP] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_DEALASSUMPTIONS_DSP] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_DEALIMPORTLIST_DIL] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_FLAGBANDS_FBD] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_FLAGDEFINITIONS_FLG] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_FLAGITEMS_FLI] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_IMPLIEDYIELDANALYSIS_IYA] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_IMPLIEDYIELDANALYSISDATA_IYD] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_JOBS_JBS] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_PROCESSEDJOBS_PJB] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_REPORTFILTERS_RFS] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_REPORTITEMS_RIT] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_REPORTSETTINGS_EXS] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_SCENARIOS_SNO] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_SCENARIOSDETAILS_SND] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_TRADESMANAGEMENT_TDM] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_TRANCHECASHFLOW_TCF] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_TRANCHEMETRICS_OVERRIDES] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_TRANCHEMETRICS_TRM] to [DKP\qAll - Risk Management]
+GO
+grant select on [SFW].[DKG_TBL_SF_TRUSTEE_MAPIDS] to [DKP\qAll - Risk Management]
+GO
