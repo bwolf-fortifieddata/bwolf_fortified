@@ -1,19 +1,5 @@
---backup status
-SELECT  sysdb.NAME                                                              ,
-        dmv.PERCENT_COMPLETE                    AS [PercentComplete]            ,
-        dmv.TOTAL_ELAPSED_TIME/60000            AS [Elapsed_Time_in_Minutes]    ,
-        dmv.ESTIMATED_COMPLETION_TIME/60000     AS [Time_Remaining_in_Minutes]  ,
-        (SELECT TEXT FROM sys.dm_exec_sql_text(dmv.SQL_HANDLE))AS COMMAND
-FROM    MASTER..SYSDATABASES sysdb
-        inner join sys.dm_exec_requests dmv on sysdb.DBID=dmv.DATABASE_ID AND dmv.COMMAND LIKE '%BACKUP%'
-ORDER   BY 2 desc, 3 desc
-
---restore status
-SELECT  sysdb.NAME                                                              ,
-        dmv.PERCENT_COMPLETE                    AS [PercentComplete]            ,
-        dmv.TOTAL_ELAPSED_TIME/60000            AS [Elapsed_Time_in_Minutes]    ,
-        dmv.ESTIMATED_COMPLETION_TIME/60000     AS [Time_Remaining_in_Minutes]  ,
-        (SELECT TEXT FROM sys.dm_exec_sql_text(dmv.SQL_HANDLE))AS COMMAND
-FROM    MASTER..SYSDATABASES sysdb
-        inner join sys.dm_exec_requests dmv on sysdb.DBID=dmv.DATABASE_ID AND dmv.COMMAND LIKE '%restore%'
-ORDER   BY 2 desc, 3 desc
+PM_511B2535A16693C97B2B687690F0B2375B765451_20200228005450
+PM_7D661D93F53CC6945287C2AB5775B709DCA1145A_20200228005745
+PM_9AE92AAE3098C80FDB183E6F12D0AC85740792FB_20200228010127
+PM_7427019F2C357CCBD97932BF17C5D98B52C3AEFA_20200228010452
+PM_6B12681FC2287CE7390A72E5E2BB73D1F61AB63C_20200228010815
