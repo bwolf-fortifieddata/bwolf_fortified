@@ -1,5 +1,10 @@
 USE master
 GO
+declare @servername varchar(256)
+
+select  @servername = left(@@SERVERNAME, charindex('\', @@SERVERNAME)-1)
+
+
 if      object_id('tempdb..#tmp_error_log_directory', 'U') is not null
         drop    table #tmp_error_log_directory
 
@@ -21,5 +26,5 @@ update  d
 set     d.logTxt = replace(d.logtxt, char(39) + '.', '')
 from    #tmp_error_log_directory d
 
-select  replace('\\' + @@servername + '\' + stuff(logTxt, 2, 1, '$'), '\ERRORLOG', '') as error_log_directory
+select  replace('\\' + @servername + '\' + stuff(logTxt, 2, 1, '$'), '\ERRORLOG', '') as error_log_directory
 from    #tmp_error_log_directory d
