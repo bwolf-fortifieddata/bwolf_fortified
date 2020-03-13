@@ -1,1 +1,2 @@
-Get-WmiObject -ComputerName "NJ1DEVDB01" -Query "SELECT Name, PercentFreeSpace, FreeMegabytes FROM Win32_PerfFormattedData_PerfDisk_LogicalDisk" | Select-Object Name, PercentFreeSpace, FreeMegabytes
+CD C:\Windows\System32\WBEM
+dir /b *.mof *.mfl | findstr /v /i uninstall > moflist.txt & for /F %s in (moflist.txt) do mofcomp %s
