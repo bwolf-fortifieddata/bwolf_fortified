@@ -1,388 +1,91 @@
-/*============================================================================
-  File:     Current Activity - FMT SQL Output
+/************************************************************************************
+**
+************************************************************************************/
+        -------------------------------------------------------------------
+        if	object_id('tempdb..#sys_dm_exec_sessions')      is not null
+                drop	table #sys_dm_exec_sessions
+        -------------------------------------------------------------------
+        if	object_id('tempdb..#sys_dm_exec_requests')      is not null
+                drop	table #sys_dm_exec_requests
+        -------------------------------------------------------------------
+        if	object_id('tempdb..#sys_dm_exec_connections')   is not null
+                drop	table #sys_dm_exec_connections
+        -------------------------------------------------------------------
+        if	object_id('tempdb..#sys_sysprocesses')          is not null
+                drop	table #sys_sysprocesses
+        -------------------------------------------------------------------
+        if	object_id('tempdb..#sys_dm_os_waiting_tasks')   is not null
+                drop	table #sys_dm_os_waiting_tasks
+        -------------------------------------------------------------------
+/************************************************************************************
+**
+************************************************************************************/
+        select	*
+        into	#sys_dm_exec_sessions
+        from	sys.dm_exec_sessions
+        option	(recompile)
+        -------------------------------------------------------------------
+        select	*
+        into	#sys_dm_exec_requests
+        from	sys.dm_exec_requests
+        option	(recompile)
+        -------------------------------------------------------------------
+        select	*
+        into	#sys_dm_exec_connections
+        from	sys.dm_exec_connections
+        option	(recompile)
 
-  Summary:  Provides real time results for the current processes.
+        select	*
+        into	#sys_sysprocesses
+        from	sys.sysprocesses
+        option	(recompile)
 
-  Date:     2008
-
-  Versions: 2005, 2008, 2012, 2014, 2016, 2017
-------------------------------------------------------------------------------
-  Written by Ben DeBow, Fortified Data
-
-  For more scripts AND sample code, check out 
-    http://www.fortifieddata.com
-
-  THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF 
-  ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED 
-  TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-  PARTICULAR PURPOSE.
-============================================================================*/
-
-/*
-exec FDDBA..usp_Load_Current_Activity_Adhoc 	 
-	@SaveCurrentActivityFlag = 0
-	 , @SaveOrphanedSessionsFlag = 0
-	 , @SaveProcessSchedulersFlag = 0
-*/
-
-
--- BASIC TROUBLESHOOTING CMDS
---DBCC INPUTBUFFER(848)
---SELECT * FROM sysprocesses WHERE spid = 848
--- SP_WHO2 active	
--- SP_LOCK 848
-
--- CAPTURE CURRENT ACTIVTY AND ADHOC PROCECESS
---EXEC FDDBA..usp_Load_Process_Monitor_Adhoc 
---EXEC FDDBA..usp_Load_Orphaned_Transactions_Adhoc
-
---SELECT GETDATE() RecordDate
---	, dt.database_transaction_begin_time
---	, DB_NAME(dt.database_id) DBName
---	, st.session_id,
---    CASE WHEN EXISTS (SELECT *
---                FROM sys.dm_exec_requests er
---                WHERE er.session_id = st.session_id) THEN 0 ELSE 1 END IsOrphan,
---    es.[Host_Name] Host
---	, es.Login_Name [Login]
---	, es.[Program_Name] Program
---	, es.last_request_END_time
---	, BlockedSessionsCOUNT
---	, lh.LocksHeld
---FROM sys.dm_tran_session_transactions st
---    JOIN sys.dm_tran_database_transactions dt on st.transaction_id = dt.transaction_id
---    left JOIN sys.dm_exec_sessions es on es.session_id = st.session_id
---    --OUTER APPLY sys.dm_exec_input_buffer(st.session_id, null) ib
---    OUTER APPLY (SELECT COUNT(*) BlockedSessionsCOUNT
---                    FROM sys.dm_exec_requests erb
---                    WHERE erb.blocking_session_id = st.session_id) erb
---    OUTER APPLY (SELECT STUFF((SELECT ', ' + resource_type +  ':' + RTRIM(LTRIM(resource_description)) + ':' + CAST(resource_associated_entity_id as VARCHAR(100))
---                    FROM sys.dm_tran_locks tl
---                    WHERE request_session_id = st.session_id
---                        AND resource_type <> 'DATABASE'
---                    FOR XML PATH('')
---                    ), 1, 2, '') LocksHeld) lh
---WHERE dt.database_id <> 32767 
---	AND database_transaction_begin_time IS NOT NULL
-
-USE MASTER
-GO
-
-SELECT
-    x.session_id,
-    CAST(DATEDIFF(mi, x.start_time, GETDATE()) AS BIGINT) 'run_time',
-	status,
-    x.host_name,
-    x.login_name,
-	x.wait_type,
-	x.wait_resource,
-	x.wait_time,
-    x.start_time,
-    x.totallogical_reads ,
-    x.totalWrites,
-    x.totalCPU,
-	x.CPUSession,
-	x.ScheduleTimeSession,
-	x.TotalElapsedTimeSession,
-	x.granted_query_memory,
-    x.writes_in_tempdb,
-	parallelquery,
-	[DBName]
-	, COALESCE(x.blocking_session_id, 0) AS blocking_session_id,
-    (
-        SELECT          
-			substring(text, (statement_start_offset/2)+1
-                , ((case statement_END_offset
-                      when -1 THEN datalength(text)
-                      ELSE statement_END_offset
-                   END - statement_start_offset)/2) + 1)
-        FROM sys.dm_exec_sql_text(x.sql_hANDle)
-    ) AS [stmt_text],
-    (
-        SELECT
-            p.text
-        FROM
-        (
-            SELECT
-                MIN(sql_hANDle) AS sql_hANDle
-            FROM sys.dm_exec_requests r2
-            WHERE
-                r2.session_id = x.blocking_session_id
-        ) AS r_blocking
-        CROSS APPLY
-        (
-            SELECT
-                text AS [text()]
-            FROM sys.dm_exec_sql_text(r_blocking.sql_hANDle)
-        ) p (text)
-    ) AS [blocking_text],
-	--[SQL_Text],
-	--ObjectName,
-    x.program_name,
-	transaction_id,
-	percent_complete,
-	estimated_completion_time,
-	scheduler_id,
-	x.transaction_isolation_level,
-	x.open_transaction_COUNT,
-	open_resultset_COUNT, 
-    plan_hANDle
-	, (SELECT query_plan 
-	FROM sys.dm_exec_query_plan (plan_hANDle)) execution_plan
-	--, (
- --       SELECT          
-	--		substring(text, (statement_start_offset/2)+1
- --               , ((case statement_END_offset
- --                     when -1 THEN datalength(text)
- --                     ELSE statement_END_offset
- --                  END - statement_start_offset)/2) + 1)
- --       FROM sys.dm_exec_sql_text(x.sql_hANDle)
- --       FOR XML PATH(''), TYPE
- --   ) AS statement_text
-	--, (
- --       SELECT
- --           text AS [text()]
- --       FROM sys.dm_exec_sql_text(x.sql_hANDle)
- --       FOR XML PATH(''), TYPE
- --   ) AS sql_text
-	--,  (
- --       SELECT
- --           p.text
- --       FROM
- --       (
- --           SELECT
- --               MIN(sql_hANDle) AS sql_hANDle
- --           FROM sys.dm_exec_requests r2
- --           WHERE
- --               r2.session_id = x.blocking_session_id
- --       ) AS r_blocking
- --       CROSS APPLY
- --       (
- --           SELECT
- --               text AS [text()]
- --           FROM sys.dm_exec_sql_text(r_blocking.sql_hANDle)
- --           FOR XML PATH(''), TYPE
- --       ) p (text)
- --   ) AS blocking_text
-FROM
-(
-    SELECT
-        r.session_id,
-		r.status,
-        s.host_name,
-        s.login_name,
-        r.start_time,
-        r.sql_hANDle,
-		wait_type,
-		wait_resource,
-		CAST(wait_time AS BIGINT) AS wait_time,
-		statement_start_offset,
-		statement_END_offset,
-        r.blocking_session_id,
-		transaction_id,
-		percent_complete,
-		estimated_completion_time,
-		scheduler_id,
-		r.transaction_isolation_level,
-		db_name(r.database_id) [DBName],
-		--r.row_COUNT,
-		last_request_start_time,
-		open_resultset_COUNT, 
-		COUNT(*) AS parallelquery,
-        SUM(CAST(r.logical_reads AS BIGINT)) AS totallogical_reads ,
-        SUM(CAST(r.writes AS BIGINT)) AS totalWrites,
-        SUM(CAST(r.cpu_time AS BIGINT)) AS totalCPU,
-		SUM(CAST(s.cpu_time AS BIGINT)) AS CPUSession,
-		SUM(CAST(s.total_scheduled_time AS BIGINT)) AS ScheduleTimeSession,
-		SUM(CAST(s.total_elapsed_time AS BIGINT)) AS TotalElapsedTimeSession,
-        SUM(CAST(tsu.user_objects_alloc_page_COUNT + tsu.internal_objects_alloc_page_COUNT AS BIGINT)) AS writes_in_tempdb,
-        plan_hANDle,
-        CAST(granted_query_memory AS BIGINT) AS granted_query_memory,
-        program_name,
-		r.open_transaction_COUNT,
-		text AS [SQL_Text],
-		OBJECT_NAME(objectid, dbid) AS [ObjectName]
-    FROM sys.dm_exec_sessions s
-    JOIN sys.dm_exec_requests r ON s.session_id = r.session_id
-    JOIN sys.dm_db_task_space_usage tsu ON s.session_id = tsu.session_id AND r.request_id = tsu.request_id
-	CROSS APPLY sys.dm_exec_sql_text (r.sql_hANDle)
-    WHERE r.session_id != @@SPID
-	AND r.wait_type NOT IN ('SP_SERVER_DIAGNOSTICS_SLEEP','BROKER_RECEIVE_WAITFOR')
-	--AND r.session_id > 50
-	--AND r.status IN ('SLEEPING')
-		--AND r.status IN ('RUNNING', 'RUNNABLE', 'SUSPENDED','ROLLBACK')
-    GROUP BY
-        r.session_id,
-		r.status,
-        s.host_name,
-        s.login_name,
-        r.start_time,
-        r.sql_hANDle,
-		wait_type,
-		wait_resource,
-		wait_time,
-		statement_start_offset,
-		statement_END_offset,
-        r.blocking_session_id,
-		transaction_id,
-		percent_complete,
-		estimated_completion_time,
-		scheduler_id,
-		r.transaction_isolation_level,
-		r.open_transaction_COUNT,
-		r.database_id,
-		--, r.row_COUNT
-		last_request_start_time,
-		open_resultset_COUNT, 
-        plan_hANDle,
-        granted_query_memory,
-        program_name,
-		text,
-		OBJECT_NAME(objectid, dbid)
-) x
-ORDER BY 21
-
-SELECT TOP 10 db_name(s2.database_id) AS [DB_Name], s2.file_id , s1.io_pENDing, s1.io_pENDing_ms_ticks
-FROM sys.dm_io_pENDing_io_requests s1
-LEFT JOIN sys.dm_io_virtual_file_stats(null, null) s2 on s2.file_hANDle = s1.io_hANDle
-ORDER BY s1.io_pENDing_ms_ticks DESC
-
--- WORKER THREAD INFO
---SELECT SUM(current_tasks_COUNT) [Active of Worker Threads]
---	, SUM(current_workers_count) [Number of Worker Threads]
---	, SUM(runnable_tasks_count) [Number of Runnable Threads]
---FROM sys.dm_os_schedulers
---WHERE scheduler_id < 255
---AND status = 'VISIBLE ONLINE'
-
-
---	PENDING PROCESSES ON THE SCHEDULERS WAITING TO BE EXECUTED
-SELECT scheduler_id
-	, current_tasks_COUNT
-	, runnable_tasks_COUNT
-	, work_queue_COUNT
-	, pENDing_disk_io_COUNT
-	, current_workers_COUNT
-	, active_workers_COUNT
-	, pENDing_disk_io_COUNT
-	, context_switches_COUNT
-	, preemptive_switches_COUNT
-	, status
-	, load_factor
-	, GETDATE() AS 'RunTime'
-FROM sys.dm_os_schedulers
-WHERE scheduler_id < 255
-AND runnable_tasks_COUNT > 0
-ORDER BY 3 DESC
-
-
-SELECT TOP 5 wait_type,
-      COUNT (*) as 'total #'
-	, GETDATE() AS 'RunTime'
-FROM sys.dm_os_waiting_tasks
-WHERE [wait_type] not in
-('clr_semaphore','lazywriter_sleep','resource_queue','sleep_task','sleep_systemtask',
-'sqltrace_buffer_flush','waitfor', 'broker_task_stop', 'DISPATCHER_QUEUE_SEMAPHORE',
-'broker_receive_waitfor', 'oledb','clr_manual_event', 'clr_auto_event','DBMIRROR_SEND'
-, 'DBMIRROR_DBM_MUTEX', 'DBMIRROR_EVENTS_QUEUE', 'BROKER_TRANSMITTER', 'DBMIRRORING_CMD'
-,'FT_IFTS_SCHEDULER_IDLE_WAIT','WAIT_XTP_HOST_WAIT','SP_SERVER_DIAGNOSTICS_SLEEP',
-'CHECKPOINT_QUEUE','BROKER_TO_FLUSH','LOGMGR_QUEUE','XE_TIMER_EVENT','XE_DISPATCHER_WAIT'
-,'HADR_WORK_QUEUE','HADR_NOTIFICATION_DEQUEUE','REDO_THREAD_PENDING_WORK','HADR_LOGCAPTURE_WAIT') 
-group by wait_type
-HAVING COUNT(*) > 1
-order by COUNT (*) desc
-
-
-
-/*
--- BLOCKING SESSIONS
-SELECT
-	spid
-	,sp.status
-	,login_name   = SUBSTRING(loginame, 1, 30)
-	,host_name   = SUBSTRING(hostname, 1, 30)
-	,blocked        = CONVERT(CHAR(3), blocked)
-	,open_tran
-	,dbname     = SUBSTRING(DB_NAME(sp.dbid),1,10)
-	,cmd
-	,wait_type
-	,wait_resource
-	,wait_time
-	,start_time
-	,logical_reads
-	,writes
-	,cpu_time
-	,last_batch
-	,SQLStatement =
-        SUBSTRING
-        (
-            qt.text,
-            er.statement_start_offset/2,
-            (CASE WHEN er.statement_END_offset = -1
-                THEN LEN(CONVERT(nvarchar(MAX), qt.text)) * 2
-                ELSE er.statement_END_offset
-                END - er.statement_start_offset)/2
-        )
-	,(SELECT query_plan 
-	FROM sys.dm_exec_query_plan (PLAN_HANDLE)) execution_plan
-FROM master.dbo.sysprocesses sp
-LEFT JOIN sys.dm_exec_requests er
-    ON er.session_id = sp.spid
-OUTER APPLY sys.dm_exec_sql_text(er.sql_hANDle) AS qt
-WHERE spid IN (SELECT blocked FROM master.dbo.sysprocesses)
-AND blocked = 0
-
-
--- SLEEPING SPIDS
-SELECT last_request_start_time
-	, cpu_time,logical_reads
-	, s1.open_transaction_COUNT
-	, status, session_id
-	, s2.*
-FROM sys.dm_exec_sessions s1
-LEFT JOIN sys.dm_tran_locks s2
-	ON s1.session_id = s2.request_session_id
-WHERE session_id > 50
-	AND open_transaction_COUNT > 0
-	AND resource_type != 'database'
-	AND status = 'sleeping'
-ORDER BY session_id
-
-SELECT * FROM sys.dm_os_waiting_tasks WHERE session_id = 59
-
--- ACTIVE PROCESSES AND THE WAIT RESOURCES
-SELECT @@SERVERNAME AS [Server Name] 
-	, DB_NAME() AS [DB Name]
-	, wt.session_id
-	, wt.wait_type
-	, er.last_wait_type AS last_wait_type
-	, wt.wait_duration_ms
-	, wt.blocking_session_id
-	, wt.blocking_exec_context_id
-	, resource_description
-	, es.host_name
-	, es.login_name
-FROM sys.dm_os_waiting_tasks wt
-JOIN sys.dm_exec_sessions es 
-	ON wt.session_id = es.session_id
-JOIN sys.dm_exec_requests er 
-	ON wt.session_id = er.session_id
-WHERE es.is_user_process = 1
-	AND wt.wait_type <> 'SLEEP_TASK'
-ORDER BY wt.wait_duration_ms desc
-
-SELECT session_id,
-wait_type,
-wait_duration_ms,
-blocking_session_id,
-resource_description,
-      ResourceType = Case
-WHEN Cast(Right(resource_description, Len(resource_description) - Charindex(':', resource_description, 3)) As Int) - 1 % 8088 = 0 THEN 'Is PFS Page'
-            When Cast(Right(resource_description, Len(resource_description) - Charindex(':', resource_description, 3)) As Int) - 2 % 511232 = 0 THEN 'Is GAM Page'
-            When Cast(Right(resource_description, Len(resource_description) - Charindex(':', resource_description, 3)) As Int) - 3 % 511232 = 0 THEN 'Is SGAM Page'
-            ELSE 'Is Not PFS, GAM, or SGAM page'
-            END
-FROM sys.dm_os_waiting_tasks
-WHERE wait_type LIKE 'PAGE%LATCH_%'
-AND resource_description LIKE '2:%'
-*/
+        select	*
+        into	#sys_dm_os_waiting_tasks
+        from	sys.dm_os_waiting_tasks
+        option	(recompile)
+/************************************************************************************
+**
+************************************************************************************/		
+        select	distinct *
+        from	(
+                SELECT	s.session_id            AS spid                 ,
+                        s.[status]                                      ,
+                        s.login_name            AS loginName            ,
+                        s.[host_name]           AS hostName             ,
+                        DB_NAME(s2.dbid)        AS dbName               ,
+                        r.command				        ,
+                        s.cpu_time              AS cpuTime              ,
+                        s.reads + s.writes      AS diskIO               ,
+                        s.last_request_end_time AS lastBatch            ,
+                        s.[program_name]        AS programName          ,
+                        s.session_id                                    ,
+                        r.request_id                                    ,
+                        CASE	s.transaction_isolation_level
+                                WHEN 0 THEN 'Unspecified' 
+                                WHEN 1 THEN 'ReadUncommitted' 
+                                WHEN 2 THEN 'ReadCommitted' 
+                                WHEN 3 THEN 'Repeatable' 
+                                WHEN 4 THEN 'Serializable' 
+                                WHEN 5 THEN 'Snapshot' 
+                        END	AS transactionIsolationLevel            ,
+                        OBJECT_NAME(t.objectid) AS objectName           ,
+                        t.[text]                AS lastSQLText          ,
+                        w.blocking_session_id                           ,
+                        r.percent_complete                              ,
+                        r.estimated_completion_time                     ,
+                        r.status                as request_status       ,
+                        r.wait_type                                     ,
+                        object_schema_name(t.objectid, r.database_id) + '.' + object_name(t.objectid, r.database_id) [Object]
+                FROM	#sys_dm_exec_sessions   AS s
+                        LEFT    JOIN #sys_dm_exec_requests                              AS r    on r.session_id = s.session_id 
+                        LEFT    JOIN #sys_dm_exec_connections                           AS c    on c.session_id = s.session_id 
+                        CROSS   APPLY sys.dm_exec_sql_text(c.most_recent_sql_handle)    AS t 
+                        inner   join #sys_sysprocesses                                  AS s2   on s2.spid      = s.session_id
+                        LEFT    join #sys_dm_os_waiting_tasks                           AS w    on w.session_id = s.session_id
+                WHERE	s.is_user_process = 1
+                ) a
+        --where	a.spid = 72
+        where	a.[status]      != 'sleeping'
+        order	by a.blocking_session_id desc
+        option	(recompile)
