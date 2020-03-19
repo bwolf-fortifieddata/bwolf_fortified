@@ -1,91 +1,30 @@
-/************************************************************************************
-**
-************************************************************************************/
-        -------------------------------------------------------------------
-        if	object_id('tempdb..#sys_dm_exec_sessions')      is not null
-                drop	table #sys_dm_exec_sessions
-        -------------------------------------------------------------------
-        if	object_id('tempdb..#sys_dm_exec_requests')      is not null
-                drop	table #sys_dm_exec_requests
-        -------------------------------------------------------------------
-        if	object_id('tempdb..#sys_dm_exec_connections')   is not null
-                drop	table #sys_dm_exec_connections
-        -------------------------------------------------------------------
-        if	object_id('tempdb..#sys_sysprocesses')          is not null
-                drop	table #sys_sysprocesses
-        -------------------------------------------------------------------
-        if	object_id('tempdb..#sys_dm_os_waiting_tasks')   is not null
-                drop	table #sys_dm_os_waiting_tasks
-        -------------------------------------------------------------------
-/************************************************************************************
-**
-************************************************************************************/
-        select	*
-        into	#sys_dm_exec_sessions
-        from	sys.dm_exec_sessions
-        option	(recompile)
-        -------------------------------------------------------------------
-        select	*
-        into	#sys_dm_exec_requests
-        from	sys.dm_exec_requests
-        option	(recompile)
-        -------------------------------------------------------------------
-        select	*
-        into	#sys_dm_exec_connections
-        from	sys.dm_exec_connections
-        option	(recompile)
+USE master
+GO
+declare @servername varchar(256)
 
-        select	*
-        into	#sys_sysprocesses
-        from	sys.sysprocesses
-        option	(recompile)
+select  @servername = left(@@SERVERNAME, charindex('\', @@SERVERNAME)-1)
 
-        select	*
-        into	#sys_dm_os_waiting_tasks
-        from	sys.dm_os_waiting_tasks
-        option	(recompile)
-/************************************************************************************
-**
-************************************************************************************/		
-        select	distinct *
-        from	(
-                SELECT	s.session_id            AS spid                 ,
-                        s.[status]                                      ,
-                        s.login_name            AS loginName            ,
-                        s.[host_name]           AS hostName             ,
-                        DB_NAME(s2.dbid)        AS dbName               ,
-                        r.command				        ,
-                        s.cpu_time              AS cpuTime              ,
-                        s.reads + s.writes      AS diskIO               ,
-                        s.last_request_end_time AS lastBatch            ,
-                        s.[program_name]        AS programName          ,
-                        s.session_id                                    ,
-                        r.request_id                                    ,
-                        CASE	s.transaction_isolation_level
-                                WHEN 0 THEN 'Unspecified' 
-                                WHEN 1 THEN 'ReadUncommitted' 
-                                WHEN 2 THEN 'ReadCommitted' 
-                                WHEN 3 THEN 'Repeatable' 
-                                WHEN 4 THEN 'Serializable' 
-                                WHEN 5 THEN 'Snapshot' 
-                        END	AS transactionIsolationLevel            ,
-                        OBJECT_NAME(t.objectid) AS objectName           ,
-                        t.[text]                AS lastSQLText          ,
-                        w.blocking_session_id                           ,
-                        r.percent_complete                              ,
-                        r.estimated_completion_time                     ,
-                        r.status                as request_status       ,
-                        r.wait_type                                     ,
-                        object_schema_name(t.objectid, r.database_id) + '.' + object_name(t.objectid, r.database_id) [Object]
-                FROM	#sys_dm_exec_sessions   AS s
-                        LEFT    JOIN #sys_dm_exec_requests                              AS r    on r.session_id = s.session_id 
-                        LEFT    JOIN #sys_dm_exec_connections                           AS c    on c.session_id = s.session_id 
-                        CROSS   APPLY sys.dm_exec_sql_text(c.most_recent_sql_handle)    AS t 
-                        inner   join #sys_sysprocesses                                  AS s2   on s2.spid      = s.session_id
-                        LEFT    join #sys_dm_os_waiting_tasks                           AS w    on w.session_id = s.session_id
-                WHERE	s.is_user_process = 1
-                ) a
-        --where	a.spid = 72
-        where	a.[status]      != 'sleeping'
-        order	by a.blocking_session_id desc
-        option	(recompile)
+
+if      object_id('tempdb..#tmp_error_log_directory', 'U') is not null
+        drop    table #tmp_error_log_directory
+
+create  table #tmp_error_log_directory
+        (
+        logDate         datetime        ,
+        ProcessInfo     varchar(256)    ,
+        logTxt          varchar(max)
+        )
+
+insert  into #tmp_error_log_directory(logDate, ProcessInfo, logTxt)
+exec    xp_readerrorlog 0, 1, N'Logging SQL Server messages in file'
+
+update  d
+set     d.logTxt = replace(d.logtxt, 'Logging SQL Server messages in file ' + char(39), '')
+from    #tmp_error_log_directory d
+
+update  d
+set     d.logTxt = replace(d.logtxt, char(39) + '.', '')
+from    #tmp_error_log_directory d
+
+select  replace('\\' + @servername + '\' + stuff(logTxt, 2, 1, '$'), '\ERRORLOG', '') as error_log_directory
+from    #tmp_error_log_directory d
