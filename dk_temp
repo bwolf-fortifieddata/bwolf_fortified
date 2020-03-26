@@ -1,11 +1,67 @@
-1)	Dk_Db_Adidas
-2)	Dk_Db_Apps
-3)	Dk_Db_Geneva
-4)	Dk_Db_Hierarchy
-5)	Dk_Db_History
-6)	Dk_DB_MarketData
-7)	Dk_Db_Position
-8)	Dk_Db_Position_Archive
-9)	Dk_DB_Reference
-10)	Dk_Db_SecMaster
-11)	ODS
+USE [DK_DB_APPS]
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     Dk_Db_Adidas
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     Dk_Db_Geneva
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     Dk_Db_Hierarchy
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     Dk_Db_History
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     [DK_DB_MARKETDATA]
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     Dk_Db_Position
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     Dk_Db_Position_Archive
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+--use     Dk_DB_Reference
+--GO
+----CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+--GO
+--ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+--GO
+use     Dk_Db_SecMaster
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+use     ODS
+GO
+CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
+GO
+ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
+GO
+
