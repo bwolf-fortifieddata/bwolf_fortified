@@ -1,67 +1,106 @@
-USE [DK_DB_APPS]
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     Dk_Db_Adidas
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     Dk_Db_Geneva
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     Dk_Db_Hierarchy
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     Dk_Db_History
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     [DK_DB_MARKETDATA]
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     Dk_Db_Position
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     Dk_Db_Position_Archive
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
---use     Dk_DB_Reference
---GO
-----CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
---GO
---ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
---GO
-use     Dk_Db_SecMaster
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
-use     ODS
-GO
-CREATE USER [DKP\Svc_Ras] FOR LOGIN [DKP\Svc_Ras]
-GO
-ALTER   ROLE [db_datareader] ADD MEMBER [DKP\Svc_Ras]
-GO
 
+
+set	transaction isolation level read uncommitted
+
+if	object_id('tempdb..#tmp', 'U') is not null
+	drop	table #tmp
+        
+declare @StringPart     varchar(4000) = 'Put your string here'
+
+SELECT	TOP 25  SUBSTRING(b.text, (a.statement_start_offset/2) + 1, 
+		((CASE statement_end_offset
+			WHEN -1 THEN DATALENGTH(b.text)
+			ELSE	a.statement_end_offset
+		END -  a.statement_start_offset)/2) + 1)				AS statement_text	,
+	c.query_plan												,
+	a.execution_count								AS 'ExecutionCount'	,
+	a.execution_count/DATEDIFF(SECOND, 	a.creation_time,
+	GETDATE())									AS 'Calls_Per_Second',
+	a.total_worker_time/a.execution_count						AS 'AvgCPUTime'		,
+	a.total_worker_time								AS 'TotalCPUTime'	,
+	a.total_elapsed_time/a.execution_count						AS 'AvgElapsedTime'	,
+	a.max_logical_reads											,
+	a.max_logical_writes											,
+	a.total_physical_reads											,
+	db_name(c.dbid)									AS dbName
+into	#tmp
+FROM	sys.dm_exec_query_stats a  
+	CROSS APPLY sys.dm_exec_sql_text (a.sql_handle) AS b  
+	CROSS APPLY sys.dm_exec_query_plan (a.plan_handle) AS c  
+--where   a.sql_handle = 0x02000000c1f8af0617d3cf11895ddeed216528805654a84c0000000000000000000000000000000000000000
+where   b.text like '%' + @StringPart + '%'
+ORDER	BY total_worker_time DESC
+option	(recompile)
+
+select	@@servername
+
+select	replace(replace(replace(statement_text, char(13), ' '), char(10), ' '), '	', '') as statementText		,
+	query_plan,
+	ExecutionCount													,
+	Calls_per_second												,
+	AvgCPUTime													,
+	TotalCPUTime													,
+	AvgElapsedTime													,
+	max_logical_reads												,
+	max_logical_writes												,
+	total_physical_reads												,
+	dbname                                                                                                          ,
+        statement_text
+from	#tmp
+option  (recompile)
+
+
+
+if      object_id('tempdb..#tmp', 'U') is not null
+        drop    table #tmp
+
+SELECT  TOP 100 
+	@@SERVERNAME 'Server_Name'
+	, COALESCE(DB_NAME(qt.dbid),'Unknown') AS [DB Name]
+	, REPLACE(REPLACE(CAST(SUBSTRING(qt.text, (qs.statement_start_offset/2)+1
+                , ((case qs.statement_end_offset
+                      when -1 then datalength(qt.text)
+                      else qs.statement_end_offset
+                   end - qs.statement_start_offset)/2) + 1) AS VARCHAR(1000)), CHAR(10), ''), CHAR(13), '') AS Statement
+        , qs.creation_time 
+	, qs.execution_count AS 'Execution_Count'
+	, qs.execution_count/DATEDIFF(Second, qs.creation_time, GetDate()) AS 'calls_per_Second'
+        , convert(decimal(20, 4), qs.execution_count)/DATEDIFF(minute, qs.creation_time, GetDate()) AS 'calls_per_minute'
+        --,DATEDIFF(hour, qs.creation_time, GetDate())
+        --,isnull(nullif(DATEDIFF(day, qs.creation_time, GetDate()), 0), 1)
+        , qs.execution_count/isnull(nullif(DATEDIFF(hour, qs.creation_time, GetDate()), 0), 1) AS 'calls_per_hour'
+        , qs.execution_count/isnull(nullif(DATEDIFF(day, qs.creation_time, GetDate()), 0), 1) AS 'calls_per_Day'
+	, qs.total_worker_time/qs.execution_count AS 'AvgWorkerTime'
+	, qs.total_worker_time AS 'TotalWorkerTime'
+	, qs.total_elapsed_time/qs.execution_count AS 'AvgElapsedTime'
+	, qs.max_logical_reads
+	, qs.last_logical_reads
+	, qs.max_logical_writes
+	, qs.total_physical_reads
+	, DATEDIFF(Minute, qs.creation_time, GetDate()) AS 'Age_in_Cache'
+	, qt.dbid 'DBID'
+	, REPLACE(REPLACE(CAST(qt.text as varchar(1000)), CHAR(10), ''), CHAR(13), '') AS 'SPText'
+	, GETDATE() AS 'RunTime'
+	, (SELECT          
+		SUBSTRING(text, (statement_start_offset/2)+1
+            , ((case statement_end_offset
+                  when -1 then datalength(text)
+                  else statement_end_offset
+               end - statement_start_offset)/2) + 1)
+    FROM sys.dm_exec_sql_text(qs.sql_handle)
+    FOR XML PATH(''), TYPE
+    ) AS statement_text
+	, (SELECT text
+		FROM sys.dm_exec_sql_text(qs.sql_handle) AS qt
+		FOR XML PATH(''), TYPE) 'SPTextFMT'
+	, query_plan
+        , qs.plan_handle
+into    #tmp
+FROM    sys.dm_exec_query_stats AS qs
+        CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS qt
+        CROSS APPLY SYS.dm_exec_query_plan(qs.plan_handle) AS qp
+WHERE   qt.dbid != 32767
+        and COALESCE(DB_NAME(qt.dbid),'Unknown') not in ('FDDBA', 'msdb')
+--        and qt.text like '%pipelinedeal%'
+--AND qt.dbid = db_id() -- Filter by current database
+ORDER BY qs.total_worker_time DESC
