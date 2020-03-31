@@ -1,106 +1,211 @@
+USE [DK_DB_APPS]
+GO
+/****** Object:  StoredProcedure [dbo].[DK_SP_BSTX_INSERT_TRADES]    Script Date: 3/31/2020 2:17:06 PM ******/
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+/*
+set     statistics io, time on
+set     nocount on
+exec    #tmp_DK_SP_BSTX_INSERT_TRADES_original
+*/
+-- EXEC dbo.DK_SP_BSTX_INSERT_TRADES '2010-07-14 00:00:00.000', '2011-12-14 00:00:00.000'    
+create  or alter PROCEDURE #tmp_DK_SP_BSTX_INSERT_TRADES_original --'2017-03-28 00:00:00.000', '2017-03-28 00:00:00.000'    
+(    
+ @TradeDateFrom DATETIME = NULL,    
+ @TradeDateTo DATETIME = NULL    
+)    
+AS    
+BEGIN   
 
+ 
+ IF @TradeDateFrom IS NULL    
+ BEGIN    
+  SELECT @TradeDateFrom = MIN(CONVERT(DATETIME, TRADE_DATE))  FROM DK_DB_TRADE.dbo.DKG_TBL_CRD_LOAD_TRADE_STAGING    
+ END    
+  
+ IF @TradeDateTo IS NULL    
+ BEGIN    
+  SELECT @TradeDateTo = MAX(CONVERT(DATETIME, TRADE_DATE))  FROM DK_DB_TRADE.dbo.DKG_TBL_CRD_LOAD_TRADE_STAGING    
+ END    
+  
+ IF OBJECT_ID('tempdb..#tmpCRDTrades') IS NOT NULL DROP TABLE #tmpCRDTrades    
+ IF OBJECT_ID('tempdb..#tmpTrades') IS NOT NULL  DROP TABLE #tmpTrades    
+ IF OBJECT_ID('tempdb..#tmpPrevCRDPrices') IS NOT NULL  DROP TABLE #tmpPrevCRDPrices    
+ IF OBJECT_ID('tempdb..#tmpNextCRDPrices') IS NOT NULL  DROP TABLE #tmpNextCRDPrices    
+ IF OBJECT_ID('tempdb..#distincttmpPrevCRDPrices') IS NOT NULL  DROP TABLE #distincttmpPrevCRDPrices    
+ IF OBJECT_ID('tempdb..#distincttmpNextCRDPrices') IS NOT NULL  DROP TABLE #distincttmpNextCRDPrices    
+  
+ CREATE TABLE #distincttmpPrevCRDPrices    
+ (  PrevPrice FLOAT,  PrevTimeStamp DATETIME )    
+  
+ CREATE TABLE #distincttmpNextCRDPrices    
+ (  NextPrice FLOAT,  NextTimeStamp DATETIME  )    
+  
+ CREATE TABLE #tmpPrevCRDPrices    
+ (  auto_incr INT ,  PrevPrice FLOAT,  PrevTimeStamp DATETIME  )    
+  
+ CREATE TABLE #tmpNextCRDPrices    
+ (  auto_incr INT ,  NextPrice FLOAT,  NextTimeStamp DATETIME  )    
+  
+ CREATE TABLE #tmpCRDTrades    
+ (  ExtSecId INT,  TradeId  BIGINT,  OrderId  BIGINT,  TradeDate DATETIME,  LastFill DATETIME,    
+  TxnType  VARCHAR(20),  Manager  VARCHAR(50),  Broker  VARCHAR(20),  Price  NUMERIC(20, 8),    
+  Quantity NUMERIC(20, 8),  SettleCurr  VARCHAR(50) , Status VARCHAR(255) )    
+  
+ INSERT INTO #tmpCRDTrades    
+ SELECT CONVERT(INT, EXT_SEC_ID),    
+   CONVERT(BIGINT, TRADE_ID),    
+   CONVERT(BIGINT, ORDER_ID),    
+   CONVERT(DATETIME, TRADE_DATE),    
+   CONVERT(DATETIME, LAST_FILL),    
+   CONVERT(VARCHAR(20), ORDTR),    
+   CONVERT(VARCHAR(50), STRATEGY_CD_1),    
+   CONVERT(VARCHAR(20), BROKER),    
+   CONVERT(NUMERIC(20, 8), EXEC_PRICE),    
+   CONVERT(NUMERIC(20, 8), EXEC_QTY) ,    
+   CONVERT(VARCHAR(50),PRIN_SETTLE_CRR),  
+   CONVERT(VARCHAR(255), STATUS)  
+ FROM DK_DB_TRADE.dbo.DKG_TBL_CRD_LOAD_TRADE_STAGING    
+ WHERE CONVERT(DATETIME, TRADE_DATE) BETWEEN @TradeDateFrom AND @TradeDateTo    
+   AND STATUS IN ('ACCT', 'CNCLACCT')  
+ UNION    
+ SELECT CONVERT(INT, EXT_SEC_ID),    
+   CONVERT(BIGINT, TRADE_ID),    
+   CONVERT(BIGINT, ORDER_ID),    
+   CONVERT(DATETIME, TRADE_DATE),    
+   CONVERT(DATETIME, LAST_FILL),    
+   CONVERT(VARCHAR(20), ORDTR),    
+   CONVERT(VARCHAR(50), STRATEGY_CD_1),    
+   CONVERT(VARCHAR(20), BROKER),    
+   CONVERT(NUMERIC(20, 8), EXEC_PRICE),    
+   CONVERT(NUMERIC(20, 8), EXEC_QTY) ,    
+   CONVERT(VARCHAR(50),PRIN_SETTLE_CRR),  
+   CONVERT(VARCHAR(255), STATUS)  
+ FROM DK_DB_TRADE.dbo.DKG_TBL_CRD_LOAD_TRADE_STAGING_HISTORY    
+ WHERE CONVERT(DATETIME, TRADE_DATE) BETWEEN @TradeDateFrom AND @TradeDateTo    
+   AND STATUS IN ('ACCT', 'CNCLACCT')  
+  
+ SELECT S.DK_TS_NAME AS Symbol, S.DK_TS_DESC AS Name,  S.DK_TST_NAME AS SecType,  T.TradeId,    
+   T.OrderId,  T.TradeDate,    
+   CASE     
+    WHEN T.Manager IN ('MGR_09', 'MGR_15', 'MGR_23', 'MGR_24', 'MGR_26') THEN dbo.GET_TZTIME(T.LastFill, 'ET')    
+    ELSE T.LastFill    
+   END AS LastFill,    
+   CASE T.TxnType    
+    WHEN 'BUYL' THEN 'Buy'    
+    WHEN 'SELLL' THEN 'Sell'    
+    WHEN 'BUYS' THEN 'Buy Cover'    
+    WHEN 'SELLS' THEN 'Sell Short'    
+    ELSE T.TxnType    
+   END AS TxnType,    
+   T.Manager,  T.Broker,  T.Quantity,  T.Price,  T.SettleCurr, T.Status  
+ INTO #tmpTrades    
+ FROM DK_DB_SECMASTER.dbo.DK_VW_FLATVIEW S    
+   JOIN #tmpCRDTrades T  ON S.DK_TS_ID = T.ExtSecId    
+ WHERE S.DK_TST_NAME IN  ('Common stock', 'Master Limited Partnership' , 'ADR', 'Warrants',  'Rights',  --'Exchange-traded equity option',    
+   'Convertible bond',  'Convertible Bond - French Style',  'Preferred stock',  'Convertible preferred stock',    
+   --'Equity index',    
+   'Exchange-traded fund')    
+  /*
+ INSERT INTO DK_DB_APPS.dbo.DK_TBL_BSTX_DATA    
+ (  DK_TBD_ORDER_ID,  DK_TBD_TRADE_ID,  DK_TBD_SYMBOL,  DK_TBD_NAME,  DK_TBD_SEC_TYPE,  DK_TBD_TRADE_DATE,    
+  DK_TBD_LAST_FILL,  DK_TBD_TXN_TYPE,  DK_TBD_MANAGER,  DK_TBD_BROKER,  DK_TBD_QUANTITY,  DK_TBD_PRICE,    
+  DK_TBD_SETTLE_CURR,  DK_TBD_CREATE_USER,  DK_TBD_CREATE_DATETIME, DK_TBD_STATUS )    
+  */
 
-set	transaction isolation level read uncommitted
+ SELECT OrderId,  TradeId,  Symbol,  Name,  SecType,  TradeDate,  MAX(LastFill) AS LastFill,    
+   TxnType,  Manager,  Broker, SUM(Quantity) AS Quantity,  SUM(Quantity * Price) / SUM(Quantity) AS Price,    
+   SettleCurr,  'SYSTEM' as DK_TBD_CREATE_USER,   GETDATE() as DK_TBD_CREATE_DATETIME, Status  
+into    #tmp_DK_TBL_BSTX_DATA
+ FROM #tmpTrades 
+ WHERE OrderId NOT IN (SELECT DK_TBD_ORDER_ID FROM [DK_DB_APPS].[dbo].[DK_TBL_BSTX_DATA]
+						WHERE DK_TBD_ORDER_ID = OrderId AND DK_TBD_TRADE_ID = TradeId AND CAST(DK_TBD_TRADE_DATE AS DATETIME) = CAST(TradeDate AS DATETIME)  --- #Changed Need to check
+						AND DK_TBD_SYMBOL = Symbol AND DK_TBD_TXN_TYPE = TxnType AND DK_TBD_MANAGER = Manager 
+						AND DK_TBD_BROKER = Broker AND DK_TBD_STATUS = Status   )   
+ GROUP BY OrderId,  TradeId,  Symbol,  Name,  SecType,  TradeDate,  TxnType,  Manager,  Broker,  SettleCurr , Status   
+  
+ DECLARE @reccount int    
+ DECLARE @Counter int    
+ DECLARE @CRDTimeStamp datetime    
+ DECLARE @Symbol varchar(255)    
+ DECLARE @TradeID int    
+ DECLARE @MaxCount  int    
+ DECLARE @MinCount int    
+ Set @Counter=1    
+  
+ --Loop through the BSTX_DATA records and get the prices for each Trade    
+ SELECT @MaxCount=MAX(DK_TBD_ID),@MinCount=MIN(DK_TBD_ID) FROM [DK_DB_APPS].dbo.DK_TBL_BSTX_DATA     
+ WHERE DK_TBD_TRADE_DATE BETWEEN @TradeDateFrom AND @TradeDateTo    
+  
+ WHILE(@MinCount<=@MaxCount)    
+ BEGIN    
+  INSERT INTO #distincttmpPrevCRDPrices    
+  SELECT DISTINCT TOP 5 DK_TIPH_PRICE_USED,DK_TIPH_UPD_DATE   
+  FROM [DK_DB_APPS].dbo.DK_TBL_BSTX_DATA A(NOLOCK)   
+    JOIN DK_DB_SECMASTER.dbo.DK_VW_GENEVA_FLATVIEW B(NOLOCK)   ON A.DK_TBD_SYMBOL=B.DK_VGF_TS_NAME    
+    JOIN [DK_DB_MARKETDATA].dbo.DK_TBL_INTRADAY_PRICE_HISTORY C (NOLOCK) ON B.DK_VGF_GENEVA_SEC_ID=C.DK_TIPH_INVESTMENT_CODE     
+  WHERE DK_TBD_TRADE_DATE BETWEEN @TradeDateFrom AND @TradeDateTo AND    
+    DK_TIPH_UPD_DATE < DK_TBD_LAST_FILL AND CAST(DK_TIPH_UPD_DATE AS DATE) = CAST(DK_TBD_TRADE_DATE AS DATE)     --- #Changed Need to check
+    AND DK_TBD_ID=@MinCount    
+  ORDER BY DK_TIPH_UPD_DATE DESC    
+  
+  INSERT INTO #distincttmpNextCRDPrices    
+  SELECT  DISTINCT TOP 5 DK_TIPH_PRICE_USED,DK_TIPH_UPD_DATE   
+  FROM    [DK_DB_APPS].dbo.DK_TBL_BSTX_DATA A(NOLOCK)   
+    JOIN [DK_DB_SECMASTER].dbo.DK_VW_GENEVA_FLATVIEW B(NOLOCK) ON A.DK_TBD_SYMBOL=B.DK_VGF_TS_NAME   
+    JOIN [DK_DB_MARKETDATA].dbo.DK_TBL_INTRADAY_PRICE_HISTORY C (NOLOCK) ON B.DK_VGF_GENEVA_SEC_ID=C.DK_TIPH_INVESTMENT_CODE     
+  WHERE DK_TBD_TRADE_DATE BETWEEN @TradeDateFrom AND @TradeDateTo AND    
+    DK_TIPH_UPD_DATE > DK_TBD_LAST_FILL AND CAST(DK_TIPH_UPD_DATE AS DATE) = CAST(DK_TBD_TRADE_DATE AS DATE)     --- #Changed Need to check
 
-if	object_id('tempdb..#tmp', 'U') is not null
-	drop	table #tmp
-        
-declare @StringPart     varchar(4000) = 'Put your string here'
-
-SELECT	TOP 25  SUBSTRING(b.text, (a.statement_start_offset/2) + 1, 
-		((CASE statement_end_offset
-			WHEN -1 THEN DATALENGTH(b.text)
-			ELSE	a.statement_end_offset
-		END -  a.statement_start_offset)/2) + 1)				AS statement_text	,
-	c.query_plan												,
-	a.execution_count								AS 'ExecutionCount'	,
-	a.execution_count/DATEDIFF(SECOND, 	a.creation_time,
-	GETDATE())									AS 'Calls_Per_Second',
-	a.total_worker_time/a.execution_count						AS 'AvgCPUTime'		,
-	a.total_worker_time								AS 'TotalCPUTime'	,
-	a.total_elapsed_time/a.execution_count						AS 'AvgElapsedTime'	,
-	a.max_logical_reads											,
-	a.max_logical_writes											,
-	a.total_physical_reads											,
-	db_name(c.dbid)									AS dbName
-into	#tmp
-FROM	sys.dm_exec_query_stats a  
-	CROSS APPLY sys.dm_exec_sql_text (a.sql_handle) AS b  
-	CROSS APPLY sys.dm_exec_query_plan (a.plan_handle) AS c  
---where   a.sql_handle = 0x02000000c1f8af0617d3cf11895ddeed216528805654a84c0000000000000000000000000000000000000000
-where   b.text like '%' + @StringPart + '%'
-ORDER	BY total_worker_time DESC
-option	(recompile)
-
-select	@@servername
-
-select	replace(replace(replace(statement_text, char(13), ' '), char(10), ' '), '	', '') as statementText		,
-	query_plan,
-	ExecutionCount													,
-	Calls_per_second												,
-	AvgCPUTime													,
-	TotalCPUTime													,
-	AvgElapsedTime													,
-	max_logical_reads												,
-	max_logical_writes												,
-	total_physical_reads												,
-	dbname                                                                                                          ,
-        statement_text
-from	#tmp
-option  (recompile)
-
-
-
-if      object_id('tempdb..#tmp', 'U') is not null
-        drop    table #tmp
-
-SELECT  TOP 100 
-	@@SERVERNAME 'Server_Name'
-	, COALESCE(DB_NAME(qt.dbid),'Unknown') AS [DB Name]
-	, REPLACE(REPLACE(CAST(SUBSTRING(qt.text, (qs.statement_start_offset/2)+1
-                , ((case qs.statement_end_offset
-                      when -1 then datalength(qt.text)
-                      else qs.statement_end_offset
-                   end - qs.statement_start_offset)/2) + 1) AS VARCHAR(1000)), CHAR(10), ''), CHAR(13), '') AS Statement
-        , qs.creation_time 
-	, qs.execution_count AS 'Execution_Count'
-	, qs.execution_count/DATEDIFF(Second, qs.creation_time, GetDate()) AS 'calls_per_Second'
-        , convert(decimal(20, 4), qs.execution_count)/DATEDIFF(minute, qs.creation_time, GetDate()) AS 'calls_per_minute'
-        --,DATEDIFF(hour, qs.creation_time, GetDate())
-        --,isnull(nullif(DATEDIFF(day, qs.creation_time, GetDate()), 0), 1)
-        , qs.execution_count/isnull(nullif(DATEDIFF(hour, qs.creation_time, GetDate()), 0), 1) AS 'calls_per_hour'
-        , qs.execution_count/isnull(nullif(DATEDIFF(day, qs.creation_time, GetDate()), 0), 1) AS 'calls_per_Day'
-	, qs.total_worker_time/qs.execution_count AS 'AvgWorkerTime'
-	, qs.total_worker_time AS 'TotalWorkerTime'
-	, qs.total_elapsed_time/qs.execution_count AS 'AvgElapsedTime'
-	, qs.max_logical_reads
-	, qs.last_logical_reads
-	, qs.max_logical_writes
-	, qs.total_physical_reads
-	, DATEDIFF(Minute, qs.creation_time, GetDate()) AS 'Age_in_Cache'
-	, qt.dbid 'DBID'
-	, REPLACE(REPLACE(CAST(qt.text as varchar(1000)), CHAR(10), ''), CHAR(13), '') AS 'SPText'
-	, GETDATE() AS 'RunTime'
-	, (SELECT          
-		SUBSTRING(text, (statement_start_offset/2)+1
-            , ((case statement_end_offset
-                  when -1 then datalength(text)
-                  else statement_end_offset
-               end - statement_start_offset)/2) + 1)
-    FROM sys.dm_exec_sql_text(qs.sql_handle)
-    FOR XML PATH(''), TYPE
-    ) AS statement_text
-	, (SELECT text
-		FROM sys.dm_exec_sql_text(qs.sql_handle) AS qt
-		FOR XML PATH(''), TYPE) 'SPTextFMT'
-	, query_plan
-        , qs.plan_handle
-into    #tmp
-FROM    sys.dm_exec_query_stats AS qs
-        CROSS APPLY sys.dm_exec_sql_text(qs.sql_handle) AS qt
-        CROSS APPLY SYS.dm_exec_query_plan(qs.plan_handle) AS qp
-WHERE   qt.dbid != 32767
-        and COALESCE(DB_NAME(qt.dbid),'Unknown') not in ('FDDBA', 'msdb')
---        and qt.text like '%pipelinedeal%'
---AND qt.dbid = db_id() -- Filter by current database
-ORDER BY qs.total_worker_time DESC
+    AND DK_TBD_ID=@MinCount    
+  ORDER BY DK_TIPH_UPD_DATE ASC
+  
+  INSERT INTO #tmpPrevCRDPrices    
+  SELECT ROW_NUMBER() over(order by PrevTimeStamp DESC) as id,PrevPrice,PrevTimeStamp     
+  FROM #distincttmpPrevCRDPrices    
+  
+  INSERT INTO #tmpNextCRDPrices    
+  SELECT ROW_NUMBER() over(order by NextTimeStamp ASC) as id,NextPrice,NextTimeStamp    
+  FROM #distincttmpNextCRDPrices      
+  
+  --UPDATE DK_TBL_BSTX_DATA   
+  --SET  DK_TBD_PREVIOUS_PRICE1=(SELECT PrevPrice FROM #tmpPrevCRDPrices WHERE auto_incr=1),    
+  --  DK_TBD_PREVIOUS_PRICE2=(SELECT PrevPrice FROM #tmpPrevCRDPrices WHERE auto_incr=2),    
+  --  DK_TBD_PREVIOUS_PRICE3=(SELECT PrevPrice FROM #tmpPrevCRDPrices WHERE auto_incr=3),    
+  --  DK_TBD_PREVIOUS_PRICE4=(SELECT PrevPrice FROM #tmpPrevCRDPrices WHERE auto_incr=4),    
+  --  DK_TBD_PREVIOUS_PRICE5=(SELECT PrevPrice FROM #tmpPrevCRDPrices WHERE auto_incr=5),    
+  --  DK_TBD_NEXT_PRICE1=(SELECT NextPrice FROM #tmpNextCRDPrices WHERE auto_incr=1),    
+  --  DK_TBD_NEXT_PRICE2=(SELECT NextPrice FROM #tmpNextCRDPrices WHERE auto_incr=2),    
+  --  DK_TBD_NEXT_PRICE3=(SELECT NextPrice FROM #tmpNextCRDPrices WHERE auto_incr=3),    
+  --  DK_TBD_NEXT_PRICE4=(SELECT NextPrice FROM #tmpNextCRDPrices WHERE auto_incr=4),    
+  --  DK_TBD_NEXT_PRICE5=(SELECT NextPrice FROM #tmpNextCRDPrices WHERE auto_incr=5),    
+  --  DK_TBD_PREVIOUS_TIMESTAMP1=(SELECT PrevTimestamp FROM #tmpPrevCRDPrices WHERE auto_incr=1),    
+  --  DK_TBD_PREVIOUS_TIMESTAMP2=(SELECT PrevTimestamp FROM #tmpPrevCRDPrices WHERE auto_incr=2),    
+  --  DK_TBD_PREVIOUS_TIMESTAMP3=(SELECT PrevTimestamp FROM #tmpPrevCRDPrices WHERE auto_incr=3),    
+  --  DK_TBD_PREVIOUS_TIMESTAMP4=(SELECT PrevTimestamp FROM #tmpPrevCRDPrices WHERE auto_incr=4),    
+  --  DK_TBD_PREVIOUS_TIMESTAMP5=(SELECT PrevTimestamp FROM #tmpPrevCRDPrices WHERE auto_incr=5),    
+  --  DK_TBD_NEXT_TIMESTAMP1=(SELECT NextTimestamp FROM #tmpNextCRDPrices WHERE auto_incr=1),    
+  --  DK_TBD_NEXT_TIMESTAMP2=(SELECT NextTimestamp FROM #tmpNextCRDPrices WHERE auto_incr=2),    
+  --  DK_TBD_NEXT_TIMESTAMP3=(SELECT NextTimestamp FROM #tmpNextCRDPrices WHERE auto_incr=3),    
+  --  DK_TBD_NEXT_TIMESTAMP4=(SELECT NextTimestamp FROM #tmpNextCRDPrices WHERE auto_incr=4),    
+  --  DK_TBD_NEXT_TIMESTAMP5=(SELECT NextTimestamp FROM #tmpNextCRDPrices WHERE auto_incr=5)        
+  --WHERE DK_TBD_ID=@MinCount    
+  
+  TRUNCATE TABLE  #distincttmpPrevCRDPrices    
+  TRUNCATE TABLE  #distincttmpNextCRDPrices      
+  TRUNCATE TABLE  #tmpPrevCRDPrices    
+  TRUNCATE TABLE  #tmpNextCRDPrices    
+  Set @MinCount=@MinCount+1    
+ END    
+  
+ DROP TABLE #tmpCRDTrades    
+ DROP TABLE #tmpTrades    
+ DROP TABLE #tmpPrevCRDPrices    
+ DROP TABLE #tmpNextCRDPrices    
+ DROP TABLE #distincttmpPrevCRDPrices    
+ DROP TABLE #distincttmpNextCRDPrices    
+END    
+  
+  
