@@ -1,11 +1,31 @@
-$RegistryBase = 'HKLM:\SOFTWARE'
-$RegistryKey = 'FortifiedData'
-$BasePath = "$((Get-Item -Path "$RegistryBase\$RegistryKey").GetValue("ClientSideBasePath"))\ClientManagement"
-$BasePath
-$Config = (Get-Content "$BasePath\Config.json" | Out-String | ConvertFrom-Json)
-Set-AWSCredential -AccessKey $Config.CloudStorage.AccessKey -SecretKey $Config.CloudStorage.SecretKey
-$Bucket = $Config.CloudStorage.Bucket
-$SubPrefix = $Config.CloudStorage.SubPrefix
-$ResetPrefix = "reset/$SubPrefix"
-"Trying to connect to S3 bucket"
-Get-S3object -BucketName $Bucket -KeyPrefix "$ResetPrefix/"
+RAISERROR('	CREATING OR ALTERING PROCEDURE [OpsControl].[usp_RunOperations]',10,1) WITH NOWAIT;
+if object_id('OpsControl.usp_RunOperations') is null exec('create procedure [OpsControl].[usp_RunOperations] as select getdate() DT')
+GO
+  alter procedure OpsControl.usp_RunOperations
+WITH ENCRYPTION
+as
+declare @Script nvarchar(max)
+
+if not exists (select * from Licensing.fn_ValidateLicense()) return
+
+declare cOperations cursor static forward_only for
+	select replace(OPS_Script, '%OPS_ID%', cast(OPS_ID as nvarchar(10)))
+	from OpsControl.Operations
+		outer apply (select EndDateTime
+						from OpsControl.fn_GetLastLogRecord(OPS_ID, default, default, default, default, default)) m
+	where OPS_IsActive = 1
+		and (EndDateTime is null
+			or datediff(minute, EndDateTime, sysdatetime()) >= OPS_MinutesInterval
+			)
+
+open cOperations
+fetch next from cOperations into @Script
+while @@FETCH_STATUS = 0
+begin
+	exec(@Script)
+	fetch next from cOperations into @Script
+end
+close cOperations
+deallocate cOperations
+
+GO
