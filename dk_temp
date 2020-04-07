@@ -1,32 +1,58 @@
-RAISERROR('	CREATING OR ALTERING PROCEDURE [Auditing].[usp_ReadServerAuditData]',10,1) WITH NOWAIT;
-if object_id('Auditing.usp_ReadServerAuditData') is null exec('create procedure [Auditing].[usp_ReadServerAuditData] as select getdate() DT')
+
+RAISERROR('	CREATING OR ALTERING PROCEDURE [Auditing].[usp_ReadXEData]',10,1) WITH NOWAIT;
+if object_id('Auditing.usp_ReadXEData') is null exec('create procedure [Auditing].[usp_ReadXEData] as select getdate() DT')
 GO
-alter procedure Auditing.usp_ReadServerAuditData
+  alter procedure Auditing.usp_ReadXEData
 	@OPS_ID smallint,
 	@ASE_ID int,
 	@SessionObjectName nvarchar(128),
 	@StoragePath varchar(1000),
 	@IsActive bit
-with encryption
+WITH ENCRYPTION
 as
 set nocount on
-declare @AES_ID tinyint = 2,
+declare @AES_ID tinyint = 1,
 		@LastfileName varchar(1000),
 		@LastOffset bigint,
 		@OPL_ID int,
 		@RowCount int,
-		@ErrorMessage nvarchar(2000),
-		@SQL nvarchar(max)
+		@ErrorMessage nvarchar(2000)
 
 if not exists (select * from Licensing.fn_ValidateLicense()) return
+/*****************************************************************************************************
+**
+*****************************************************************************************************/
+if object_id('tempdb..#XEData') is not null
+	drop table #XEData
 
-if object_id('tempdb..#ServerAuditData') is not null
-	drop table #ServerAuditData
+create  table #XEData
+        (
+        Fname                           nvarchar(260)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        file_offset                     bigint                                                  ,
+        EventTime                       datetime2(7)                                            ,
+        EventType                       nvarchar(60)    collate SQL_Latin1_General_CP1_CI_AS    ,
+        server_instance_name            nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        object_type                     nvarchar(60)    collate SQL_Latin1_General_CP1_CI_AS    ,
+        ObjectName                      nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        DatabaseName                    nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        index_id                        int                                                     ,
+        session_id                      int                                                     ,
+        server_principal_name           nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        session_server_principal_name   nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        username                        nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        client_hostname                 nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        client_app_name                 nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
+        is_system                       bit                                                     ,
+        sql_text                        nvarchar(max)   collate SQL_Latin1_General_CP1_CI_AS
+        )
+/*****************************************************************************************************
+**
+*****************************************************************************************************/
 
 select @LastfileName = null,
 			@LastOffset = null
 
-select @LastfileName = cast(Info1 as varchar(1000)),
+select @LastFileName = cast(Info1 as varchar(1000)),
 	@LastOffset = cast(Info2 as bigint)
 from OpsControl.fn_GetLastLogRecord(@OPS_ID, @ASE_ID, @AES_ID, 1, default, default)
 
@@ -35,68 +61,81 @@ exec OpsControl.usp_LogOperation @OPL_ID = @OPL_ID output,
 									@Identifier1 = @ASE_ID,
 									@Identifier2 = @AES_ID
 
+
+
+
 begin try
-/*****************************************************************************************************
-**
-*****************************************************************************************************/
-        create  table #ServerAuditData
+        insert  into #XEData
                 (
-                FName                           nvarchar(260)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                audit_file_offset               bigint                                                  ,
-                EventTime                       datetime2(7)                                            ,
-                action_id                       varchar(4)      collate SQL_Latin1_General_CP1_CI_AS    ,
-                server_instance_name            nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                class_type                      varchar(2)      collate SQL_Latin1_General_CP1_CI_AS    ,
-                ObjectName                      nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                DatabaseName                    nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                permission_bitmask              varbinary(16)                                           ,
-                succeeded                       bit                                                     ,
-                session_id                      smallint                                                ,
-                server_principal_name           nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                session_server_principal_name   nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                database_principal_name         nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                SQLStatement                    nvarchar(4000)  collate SQL_Latin1_General_CP1_CI_AS    ,
-                AdditionalInformation           nvarchar(4000)  collate SQL_Latin1_General_CP1_CI_AS    ,
-                client_ip                       nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                application_name                nvarchar(128)   collate SQL_Latin1_General_CP1_CI_AS    ,
-                duration_milliseconds           bigint
+                Fname                           ,
+                file_offset                     ,
+                EventTime                       ,
+                EventType                       ,
+                server_instance_name            ,
+                object_type                     ,
+                ObjectName                      ,
+                DatabaseName                    ,
+                index_id                        ,
+                session_id                      ,
+                server_principal_name           ,
+                session_server_principal_name   ,
+                username                        ,
+                client_hostname                 ,
+                client_app_name                 ,
+                is_system                       ,
+                sql_text
                 )
-/*****************************************************************************************************
-**
-*****************************************************************************************************/
+	select  [file_name]  'Fname',
+                file_offset,
+                dateadd(hour, -datediff(hour, getdate(), getutcdate()), EventTime) as 'EventTime',
+                [object_name]  'EventType',
+                server_instance_name  'server_instance_name',
+		object_type  'object_type',
+                ObjectName  'ObjectName',
+                isnull(nullif(DatabaseName, ''), db_name(DatabaseID))  'DatabaseName',
+                index_id,
+                session_id,
+                server_principal_name 'server_principal_name',
+                session_server_principal_name  'session_server_principal_name',
+		username 'username',
+                client_hostname  'client_hostname',
+                client_app_name 'client_app_name',
+                is_system,
+                sql_text 'sql_text'
+	from sys.fn_xe_file_target_read_file(Infra.fn_Slash(@StoragePath) + @SessionObjectName + '*.xel', NULL, @LastfileName, @LastOffset)
+		cross apply (select cast(event_data as xml) x) e
+		cross apply (select x.value('event[1]/@timestamp', 'datetime2') EventTime
+				, x.value('(event/data[@name="database_id"]/value)[1]', 'nvarchar(128)') DatabaseID
+				, x.value('(event/data[@name="object_type"]/text)[1]', 'nvarchar(60)') object_type
+				, x.value('(event/data[@name="index_id"]/value)[1]', 'int') index_id
+				, x.value('(event/data[@name="object_name"]/value)[1]', 'nvarchar(128)') ObjectName
+				, x.value('(event/data[@name="database_name"]/value)[1]', 'nvarchar(128)') DatabaseName
+				, x.value('(event/action[@name="username"]/value)[1]', 'nvarchar(128)') username
+				, x.value('(event/action[@name="sql_text"]/value)[1]', 'nvarchar(max)') sql_text
+				, x.value('(event/action[@name="session_server_principal_name"]/value)[1]', 'nvarchar(128)') session_server_principal_name
+				, x.value('(event/action[@name="session_id"]/value)[1]', 'int') session_id
+				, x.value('(event/action[@name="server_principal_name"]/value)[1]', 'nvarchar(128)') server_principal_name
+				, x.value('(event/action[@name="server_instance_name"]/value)[1]', 'nvarchar(128)') server_instance_name
+				, x.value('(event/action[@name="is_system"]/value)[1]', 'bit') is_system
+				, x.value('(event/action[@name="client_hostname"]/value)[1]', 'nvarchar(128)') client_hostname
+				, x.value('(event/action[@name="client_app_name"]/value)[1]', 'nvarchar(128)') client_app_name
+		                ) d
 
-	set @SQL = 'select [file_name] FName, audit_file_offset, dateadd(hour, -datediff(hour, getdate(), getutcdate()), event_time) AS EventTime, action_id, server_instance_name,
-		class_type, nullif([object_name], '''') ObjectName, [database_name] DatabaseName, permission_bitmask, succeeded, session_id, server_principal_name, session_server_principal_name,
-		database_principal_name, nullif([statement], '''') SQLStatement, nullif(additional_information, '''') AdditionalInformation'
-	if serverproperty('ProductMajorVersion') >= 14
-		set @SQL += ', client_ip, application_name, duration_milliseconds'
-	else
-		set @SQL += ', cast(null as nvarchar(128)) client_ip, cast(null as nvarchar(128)) application_name, cast(null as bigint) duration_milliseconds'
 
-	set @SQL += char(13)+char(10) + 'from sys.fn_get_audit_file(Infra.fn_Slash(@StoragePath) + @SessionObjectName + ''*.sqlaudit'', @LastfileName, @LastOffset) a'
-
-	insert into #ServerAuditData
-	exec sp_executesql @SQL,
-						N'@StoragePath varchar(1000),
-						@SessionObjectName nvarchar(128),
-						@LastfileName varchar(1000),
-						@LastOffset bigint',
-						@StoragePath = @StoragePath,
-						@SessionObjectName = @SessionObjectName,
-						@LastfileName = @LastfileName,
-						@LastOffset = @LastOffset
+                                
 
 	;with Input as
-			(select distinct cast(action_id as nvarchar(255)) [Event Type],
-					cast(server_instance_name as nvarchar(255)) [Server Instance Name],
-					cast(class_type as nvarchar(255)) [Object Type],
-					cast(DatabaseName as nvarchar(255)) [Database Name],
-					cast(server_principal_name as nvarchar(255)) [Server Login name],
-					cast(session_server_principal_name as nvarchar(255)) [Session Login name],
-					cast(database_principal_name as nvarchar(255)) [Username],
-					cast(client_ip as nvarchar(255)) [Host Name],
-					cast(application_name as nvarchar(255)) [Application Name]
-				from #ServerAuditData
+			(select distinct cast(EventType as nvarchar(255))   [Event Type],
+					cast(server_instance_name as nvarchar(255))  [Server Instance Name],
+					cast(object_type as nvarchar(255))  [Object Type],
+					cast(DatabaseName as nvarchar(255))  [Database Name],
+					cast(server_principal_name as nvarchar(255))  [Server Login name],
+					cast(session_server_principal_name as nvarchar(255))  [Session Login name],
+					cast(username as nvarchar(255))  [Username],
+					cast(client_hostname as nvarchar(255))  [Host Name],
+					cast(client_app_name as nvarchar(255))  [Application Name]
+				from #XEData
+                                
 			)
 		, upvt as
 			(select distinct AVT_ID, Val
@@ -121,34 +160,43 @@ begin try
 	when not matched by target then insert(AVM_AVT_ID, AVM_Name)
 									values(AVT_ID, Val);
 
-	begin transaction
+	
+        
+
+		
+        begin transaction
+
+        
+	
+
 
 	insert into Auditing.AuditTrail(ATL_ASE_ID, ATL_AES_ID, ATL_EventDateTime, ATL_EventType_AVM_ID, ATL_ServerInstanceName_AVM_ID, ATL_ObjectType_AVM_ID, ATL_ObjectName,
-									ATL_DatabaseName_AVM_ID, ATL_PermissionBitmask, ATL_Succeeded, ATL_SessionID, ATL_ServerLoginName_AVM_ID, ATL_SessionLoginName_AVM_ID, ATL_Username_AVM_ID,
-									ATL_HostName_AVM_ID, ATL_ApplicationName_AVM_ID, ATL_SQLStatement, ATL_AdditionalInformation, ATL_DurationMS)
-	select @ASE_ID ASE_ID, @AES_ID AES_ID, EventTime, et.ValueID action_id_ID, sn.ValueID server_instance_name_ID, ot.ValueID class_type_ID, ObjectName, dn.ValueID DatabaseName_ID,
-		permission_bitmask, succeeded, session_id, sl.ValueID server_principal_name_ID, el.ValueID session_server_principal_name_ID, un.ValueID database_principal_name_ID,
-		hn.ValueID client_ip_ID, an.ValueID application_name_ID, SQLStatement, AdditionalInformation, duration_milliseconds
-	from #ServerAuditData
-		outer apply Auditing.fn_GetAuditTrailIDByValue('Event Type', action_id) et
+									ATL_DatabaseName_AVM_ID, ATL_IndexID, ATL_SessionID, ATL_ServerLoginName_AVM_ID, ATL_SessionLoginName_AVM_ID, ATL_Username_AVM_ID, ATL_HostName_AVM_ID,
+									ATL_ApplicationName_AVM_ID, ATL_IsSystem, ATL_SQLStatement)
+	select @ASE_ID ASE_ID, @AES_ID AES_ID,
+                EventTime, et.ValueID EventType_ID, sn.ValueID server_instance_name_ID, ot.ValueID object_type_ID, ObjectName  collate SQL_Latin1_General_CP1_CI_AS, dn.ValueID DatabaseName_ID,
+		index_id, session_id, sl.ValueID server_principal_name_ID, el.ValueID session_server_principal_name_ID, un.ValueID username_ID, hn.ValueID client_hostname_ID,
+		an.ValueID client_app_name_ID, is_system, sql_text
+	from #XEData
+		outer apply Auditing.fn_GetAuditTrailIDByValue('Event Type', EventType) et
 		outer apply Auditing.fn_GetAuditTrailIDByValue('Server Instance Name', server_instance_name) sn
-		outer apply Auditing.fn_GetAuditTrailIDByValue('Object Type', class_type) ot
+		outer apply Auditing.fn_GetAuditTrailIDByValue('Object Type', object_type) ot
 		outer apply Auditing.fn_GetAuditTrailIDByValue('Database Name', DatabaseName) dn
 		outer apply Auditing.fn_GetAuditTrailIDByValue('Server Login name', server_principal_name) sl
 		outer apply Auditing.fn_GetAuditTrailIDByValue('Session Login name', session_server_principal_name) el
-		outer apply Auditing.fn_GetAuditTrailIDByValue('Username', database_principal_name) un
-		outer apply Auditing.fn_GetAuditTrailIDByValue('Host Name', client_ip) hn
-		outer apply Auditing.fn_GetAuditTrailIDByValue('Application Name', application_name) an
+		outer apply Auditing.fn_GetAuditTrailIDByValue('Username', username) un
+		outer apply Auditing.fn_GetAuditTrailIDByValue('Host Name', client_hostname) hn
+		outer apply Auditing.fn_GetAuditTrailIDByValue('Application Name', client_app_name) an
 
 	set @RowCount = @@ROWCOUNT
 
 	select top 1 @LastfileName = Fname,
-		@LastOffset = audit_file_offset
-	from #ServerAuditData
+		@LastOffset = file_offset
+	from #XEData
 	order by EventTime desc
 
 	exec OpsControl.usp_LogOperation @OPL_ID = @OPL_ID,
-										@Info1 = @LastfileName,
+										@Info1 = @LastFileName,
 										@Info2 = @LastOffset,
 										@Info3 = @RowCount,
 										@Finalize = 1
@@ -161,7 +209,7 @@ begin catch
 	set @ErrorMessage = ERROR_MESSAGE()
 
 	if @IsActive = 0
-			and @ErrorMessage like 'The specified pattern did not return any files %'
+			and @ErrorMessage like 'The log file name % is invalid%'
 		set @ErrorMessage = null
 
 	exec OpsControl.usp_LogOperation @OPL_ID = @OPL_ID,
@@ -169,4 +217,5 @@ begin catch
 										@ErrorMessage = @ErrorMessage,
 										@Finalize = 1
 end catch
+
 GO
