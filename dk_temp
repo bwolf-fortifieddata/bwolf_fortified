@@ -1,3 +1,3 @@
-create  index FD_IX_DK_TBL_CFWD_ORDER_AUDIT_DK_TCOA_VERSION_ID
-on      DK_TBL_CFWD_ORDER_AUDIT(DK_TCOA_VERSION_ID)
-with    (data_compression = page)
+create  index fd_IX_ExtractHistory_ExtractCode_Status_ID_queued on [Extraction].[ExtractHistory](Status, ExtractCode, Priority, CreatedDateTime)
+include (JobHistoryID, ExtractorStartTime, ExtractorEndTime, Message, CreatedBy, UpdatedDateTime, UpdatedBy, SweepCount, SHouldBroadcast)
+where   status = 'queued'
