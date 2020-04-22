@@ -1,3 +1,20 @@
-create  index fd_IX_ExtractHistory_ExtractCode_Status_ID_queued on [Extraction].[ExtractHistory](Status, ExtractCode, Priority, CreatedDateTime)
-include (JobHistoryID, ExtractorStartTime, ExtractorEndTime, Message, CreatedBy, UpdatedDateTime, UpdatedBy, SweepCount, SHouldBroadcast)
+create  index fd_IX_ExtractHistory_Status_ExtractCode_Priority_CreatedDateTime_queued
+on      [Extraction].[ExtractHistory]
+        (
+        Status          ,
+        ExtractCode     ,
+        Priority        ,
+        CreatedDateTime
+        )
+include (
+        JobHistoryID            ,
+        ExtractorStartTime      ,
+        ExtractorEndTime        ,
+        Message                 ,
+        CreatedBy               ,
+        UpdatedDateTime         ,
+        UpdatedBy               ,
+        SweepCount              ,
+        SHouldBroadcast
+        )
 where   status = 'queued'
