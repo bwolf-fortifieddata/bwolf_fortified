@@ -1,39 +1,63 @@
-<deadlock>
-  <victim-list>
-    <victimProcess id="processaf29ed68c8"/>
-  </victim-list>
-  <process-list>
-    <process id="processaf29ed68c8" taskpriority="0" logused="0" waitresource="PAGE: 24:1:486226871 " waittime="10112" ownerId="10847611672" transactionname="user_transaction" lasttranstarted="2020-04-21T07:39:02.293" XDES="0xce12327900" lockMode="S" schedulerid="56" kpid="6892" status="suspended" spid="156" sbid="0" ecid="0" priority="0" trancount="1" lastbatchstarted="2020-04-21T07:39:02.293" lastbatchcompleted="2020-04-21T07:39:02.297" lastattention="1900-01-01T00:00:00.297" clientapp=".Net SqlClient Data Provider" hostname="NJ1PRDABTASK04" hostpid="6880" loginname="AppsAdmin" isolationlevel="read committed (2)" xactid="10847611672" currentdb="24" currentdbname="DK_DB_APPS" lockTimeout="4294967295" clientoption1="671088672" clientoption2="128056">
-      <executionStack>
-        <frame procname="DK_DB_APPS.dbo.DK_SP_FXFG_SELECT_FILE_DATA" line="27" stmtstart="1216" stmtend="2324" sqlhandle="0x03001800e46e7d49e66c850083ab000001000000000000000000000000000000000000000000000000000000">  INSERT INTO @TempOrdersToBeUpdated    SELECT     DK_TFT_BATCH_ID,    DK_TFT_ULT_ACCOUNT_NO,    DK_TFT_MANAGER_CODE,     DK_TFT_ACCOUNT_NO,    @Broker BrokerCode,    NEWID() NEWGUID    FROM     DK_TBL_FXSA_TRADES    WHERE DK_TFT_STATUS NOT IN (&apos;E&apos;,&apos;D&apos;,&apos;M&apos;)    AND DK_TFT_TRADE_AMT = DK_TFT_ALLOC_AMT    AND DK_TFT_BROKER = @Broker    AND (DK_TFT_IS_FXSPOT_PENDING_APPROVAL IS NULL OR DK_TFT_IS_FXSPOT_PENDING_APPROVAL = 0)      GROUP BY     DK_TFT_BATCH_ID,DK_TFT_ULT_ACCOUNT_NO,     DK_TFT_MANAGER_CODE, DK_TFT_ACCOUNT_NO    ORDER BY DK_TFT_ULT_ACCOUNT_N    </frame>
-        <frame procname="DK_DB_APPS.dbo.DK_SP_FXFG_CFWD_SELECT_JPM_FX_DIRECT_FILE" line="50" stmtstart="3276" stmtend="3718" sqlhandle="0x0300180056b7654ba0e77e0060ab000001000000000000000000000000000000000000000000000000000000">  INSERT #CFWDSPOTDirectFile (Account, ccypair, dealtccy, BuySell, settledate, Quantity, ClientTradeRef, BatchOROrderID, UniqueID)      EXECUTE DK_SP_FXFG_SELECT_FILE_DATA &apos;BEAR&apos;, @vchar_user, 1, @ExportUserList, 0,@isMgmtC    </frame>
-      </executionStack>
-      <inputbuf>  Proc [Database Id = 24 Object Id = 1264957270]   </inputbuf>
-    </process>
-    <process id="process236d8ad1848" taskpriority="0" logused="19052" waitresource="PAGE: 24:1:486226503 " waittime="4055" ownerId="10847579377" transactionname="user_transaction" lasttranstarted="2020-04-21T07:38:48.420" XDES="0xeb26c76ca0" lockMode="IX" schedulerid="58" kpid="17100" status="suspended" spid="253" sbid="0" ecid="0" priority="0" trancount="2" lastbatchstarted="2020-04-21T07:38:48.420" lastbatchcompleted="2020-04-21T07:38:48.423" lastattention="1900-01-01T00:00:00.423" clientapp=".Net SqlClient Data Provider" hostname="DKVDI-HDODDS3" hostpid="7568" loginname="AppsAdmin" isolationlevel="read committed (2)" xactid="10847579377" currentdb="24" currentdbname="DK_DB_APPS" lockTimeout="4294967295" clientoption1="673185824" clientoption2="128048">
-      <executionStack>
-        <frame procname="DK_DB_APPS.dbo.DK_SP_FXSA_INSERT_TRADE" line="70" stmtstart="5328" stmtend="10152" sqlhandle="0x03001800570de95f51cb0c010dab000001000000000000000000000000000000000000000000000000000000">  INSERT INTO dbo.DK_TBL_FXSA_TRADES   (    DK_TFT_BROKER,    DK_TFT_RECORD_ID,    DK_TFT_TRADE_NO,    DK_TFT_TRADE_TYPE,    DK_TFT_TRADE_TYPE2,    DK_TFT_TRADE_DATE,    DK_TFT_TRADE_TIME,    DK_TFT_SETTLE_DATE,    DK_TFT_ACCOUNT_NO,    DK_TFT_ULT_ACCOUNT_NO,    DK_TFT_LOCAL_CCY,    DK_TFT_SETTLE_CCY,    DK_TFT_DENOM_CCY,    DK_TFT_TRANS_TYPE,    DK_TFT_DENOM_AMT,    DK_TFT_NET_SETTLE_AMT,    DK_TFT_PRICE,    DK_TFT_FX_RATE,    DK_TFT_TRANS_INSTR,    DK_TFT_TRADE_AMT,    DK_TFT_ALLOC_AMT,    DK_TFT_UNALLOC_AMT,    DK_TFT_NOTES,    DK_TFT_COMMISSION,    DK_TFT_FEES,    DK_TFT_CPTY,    DK_TFT_CREATE_USER,    DK_TFT_CREATE_DATETIME,    DK_TFT_UPDATE_USER,    DK_TFT_UPDATE_DATETIME,    DK_TFT_STATUS,    DK_TFT_SEC_TYPE,    DK_TFT_ACCOUNT_TYPE,    DK_TFT_INITIATOR,      DK_TFT_MANAGER_CODE,      DK_TFT_TRADE_ID,    DK_TFT_CASH_SWEEP_ON, --Added by Salil on 8 Feb 2013     DK_TFT_CASHSWEEP_CREATE_USER,  --Added by Salil on 12 Feb 2013     DK_TFT_CASHSWEEP_CREATE_DATETIME, --Added by Salil on 12 Feb 2013     DK_TFT_TRA    </frame>
-        <frame procname="DK_DB_APPS.dbo.DKG_SP_PCRF_SELECT_FUNDWISE_CUREXPOSURE_REPORT" line="909" stmtstart="75272" stmtend="81688" sqlhandle="0x03001800ed12a67c0f728a00a3ab000001000000000000000000000000000000000000000000000000000000">  EXEC [dbo].[DK_SP_FXSA_INSERT_TRADE] @DK_TFT_BROKER = @BROKER,                                               @DK_TFT_RECORD_ID = @RECORD_ID,                                               @DK_TFT_TRADE_NO = @trade_no,                                               @DK_TFT_TRADE_TYPE = @TRADE_TYPE,                                               @DK_TFT_TRADE_TYPE2 = @TRADE_TYPE2,                                               @DK_TFT_TRADE_DATE = @Dt,                                               @DK_TFT_TRADE_TIME = NULL,                                               @DK_TFT_SETTLE_DATE = @dt3,                                               @DK_TFT_ACCOUNT_NO = @Accountnumber,                                               @DK_TFT_ULT_ACCOUNT_NO = @Accountnumberult,                                               @DK_TFT_LOCAL_CCY = @Local_currency,                                               @DK_TFT_SETTLE_CCY = &apos;USD&apos;,                                               @DK_TFT_DENOM_CCY = @currency,    </frame>
-      </executionStack>
-      <inputbuf>  Proc [Database Id = 24 Object Id = 2091258605]   </inputbuf>
-    </process>
-  </process-list>
-  <resource-list>
-    <pagelock fileid="1" pageid="486226871" dbid="24" subresource="FULL" objectname="DK_DB_APPS.dbo.DK_TBL_FXSA_TRADES" id="lockac234c8180" mode="IX" associatedObjectId="72057607129333760">
-      <owner-list>
-        <owner id="process236d8ad1848" mode="IX"/>
-      </owner-list>
-      <waiter-list>
-        <waiter id="processaf29ed68c8" mode="S" requestType="wait"/>
-      </waiter-list>
-    </pagelock>
-    <pagelock fileid="1" pageid="486226503" dbid="24" subresource="FULL" objectname="DK_DB_APPS.dbo.DK_TBL_FXSA_TRADES" id="lock92a7b8da00" mode="S" associatedObjectId="72057607129333760">
-      <owner-list>
-        <owner id="processaf29ed68c8" mode="S"/>
-      </owner-list>
-      <waiter-list>
-        <waiter id="process236d8ad1848" mode="IX" requestType="wait"/>
-      </waiter-list>
-    </pagelock>
-  </resource-list>
-</deadlock>
+In the last two weeks, there have been two deadlocks involving the table DK_TBL_FXSA_TRADES
+
+These deadlocks involve two triggers and 5 procedures in total.
+
+triggers:
+------------------------------------------
+DK_TR_UPDATE_DK_TBL_FXSA_TRADES
+DK_TR_INSERT_DK_TBL_FXSA_TRADES
+
+Both triggers are looking for the DK_TFT_LOCAL_CCY of 'JPY' coming from the Inserted "table" and joining back to DK_TBL_FXSA_TRADES.  In general, triggers of this nature can lead to performance
+issues.  DK_TR_UPDATE_DK_TBL_FXSA_TRADES especially uses some innefficient programming practices as it is performing joins based on functions.  This forces row-by-row analysis rather than the generally
+more efficient set based.
+
+Procedures:
+------------------------------------------
+DK_DB_APPS.dbo.DK_SP_FXSA_INSERT_CRD_TRADE
+DK_DB_APPS.dbo.DK_SP_FXF_INSERT_FX_SPOT_DETAILS
+DK_DB_APPS.dbo.DK_SP_FXFG_SELECT_FILE_DATA
+DK_DB_APPS.dbo.DK_SP_FXFG_CFWD_SELECT_JPM_FX_DIRECT_FILE
+DK_DB_APPS.dbo.DKG_SP_PCRF_SELECT_FUNDWISE_CUREXPOSURE_REPORT
+
+
+
+
+I do not believe there is much that can be done without altering code.  Below are my suggestions.
+
+* We could create a FILTERED index on DK_TFT_LOCAL_CCY.  This would include a minor alteration to the procedure that I would suggest to have the code for the inserted table reference the 
+DK_TFT_LOCAL_CCY column equal to 'JPY'
+* We could enable the option to "Allow Snapshot Isolation".  This can be enabled while the database is replicated in AG.  This would allow each transaction to run more autonomously.  This 
+does come at a price of row versioning in tempdb.  Enabling this option DOES NOT change a default for the database.  Each of the procedures mentioned above would need to have the line
+"set transaction isolation level snapshot" at the beginning of the procedure.
+* DK_SP_FXFG_SELECT_FILE_DATA could benefit from possibly altering the index DK_TBL_FXSA_TRADES_DK_TFT_BROKER to include the column DK_TFT_IS_FXSPOT_PENDING_APPROVAL as part of the leaf level of the index.  Either that,
+or since this is a smaller table a second index could be added as specified below:
+
+        create  index fd_ix_DK_TBL_FXSA_TRADES_DK_TFT_BROKER
+        on      DK_DB_APPS.dbo.DK_TBL_FXSA_TRADES
+                (
+                DK_TFT_BROKER                   ,
+                DK_TFT_STATUS                   ,
+                DK_TFT_IS_FXSPOT_PENDING_APPROVAL
+                )
+        include (
+                DK_TFT_ACCOUNT_NO       ,
+                DK_TFT_TRADE_AMT        ,
+                DK_TFT_ALLOC_AMT        ,
+                DK_TFT_ULT_ACCOUNT_NO   ,
+                DK_TFT_BATCH_ID         ,
+                DK_TFT_MANAGER_CODE
+                )
+        with    (data_compression = page, fillfactor = 90)
+
+* DK_SP_FXFG_CFWD_SELECT_JPM_FX_DIRECT_FILE would benefit from the following index
+        create  index fd_ix_DK_TBL_FXSA_TRADES_DK_TFT_EXTRACTED_UNIQUE_ID
+        on      DK_DB_APPS.dbo.DK_TBL_FXSA_TRADES
+                (
+                DK_TFT_EXTRACTED_UNIQUE_ID
+                )
+        include (
+                DK_TFT_DEPARTMENT
+                )
+        with    (data_compression = page, fillfactor = 90)
+
+
