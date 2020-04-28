@@ -1,3 +1,6 @@
+use     fddba
+go
+
 RAISERROR('	CREATING OR ALTERING PROCEDURE [dbo].[BackupException_AG]',10,1) WITH NOWAIT;
 if object_id('dbo.BackupException_AG') is null exec('create procedure [dbo].[BackupException_AG] as select getdate() DT')
 GO
@@ -176,14 +179,16 @@ IF @DebugOverride = 1
                         select  @InstanceNames  = null
 
                         select  @InstanceNames  = coalesce(@InstanceNames + '~', '') + n.replica_server_name
-                        from    sys.dm_hadr_availability_replica_cluster_nodes n                        
+                        from    sys.dm_hadr_availability_replica_cluster_nodes n
 
                         --availability groups
                         set     @namesList      = null
 
-                        select  @NamesList      = coalesce(@NamesList + '^', '') + ag.name + '~' + isnull(agl.dns_name, 'No_Listener')
+                        select  @NamesList      = coalesce(@NamesList + '^', '') + ag.name + '~' + isnull(isnull(agl.dns_name, ags.primary_replica), 'No_Listener')
+                        
                         from    sys.availability_groups ag
                                 left join sys.availability_group_listeners agl on ag.group_id = agl.group_id
+                                left join sys.dm_hadr_availability_group_states ags on ags.group_id = ag.group_id
 
                         --default mail profile
                         select  @EmailProfile   = null
@@ -324,7 +329,10 @@ CREATE TABLE #ListenerDBs(AGName VARCHAR(1028), DatabaseName SYSNAME)
 SET @AgName = NULL
 SET @ListenerName = NULL
 DECLARE curAgs  CURSOR  FAST_FORWARD LOCAL FOR 
-	SELECT AG, Listener  FROM #AGS
+SELECT  AG, nullif(Listener, '')
+FROM #AGS
+
+
 OPEN curAgs
 FETCH NEXT FROM curAgs INTO @AgName, @ListenerName
 WHILE @@FETCH_STATUS = 0
