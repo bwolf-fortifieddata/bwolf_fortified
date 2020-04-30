@@ -1,1 +1,10 @@
-Checking on Refresh Status:  RUNNINGChecking on Refresh Status:  RUNNINGChecking on Refresh Status:  RUNNINGChecking on Refresh Status:  RUNNINGChecking on Refresh Status:  FAILEDRenaming database... removing temporary prefixMsg 927, Level 14, State 2, Server NJ1DEVDB01\INST01, Line 1Database 'exopenstaars' cannot be opened. It is in the middle of a restore.Database REFRESH step completed                            Activity 'STEP3 Refresh Database - Restore' completed
+Checking on Refresh Status:  RUNNING
+Checking on Refresh Status:  RUNNING
+Checking on Refresh Status:  RUNNING
+Checking on Refresh Status:  RUNNING
+Checking on Refresh Status:  FAILED
+Renaming database... removing temporary prefix
+Msg 927, Level 14, State 2, Server NJ1DEVDB01\INST01, Line 1
+Database 'exopenstaars' cannot be opened. It is in the middle of a restore.
+Database REFRESH step completed
+Activity 'STEP3 Refresh Database - Restore' completed
