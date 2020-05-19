@@ -1,20 +1,44 @@
-use     <database name>
-go
+drop	table if exists ##out
 
-declare @initialsize    int = <initialsize>             ,
-        @shrinksize     int                             ,
-        @shrinkinc      int = 1024                      ,
-        @floorsize      int = <floorsize>               ,
-        @logicalName    varchar(256) = <logicalName>
+create	table ##out
+	(
+	tName		varchar(256)	,
+	cName		varchar(256)	,
+	cntr		bigint
+	)
+	
+declare	@query		varchar(4096)	,
+	@table_name	varchar(256)	,
+	@column_name	varchar(256)	,
+	@table_schema	varchar(256)	,
+	@search_string	varchar(128)	= '12345' --this is where you put the string tha tyou are looking for
+
+declare	c cursor for
+select	table_name, column_name, table_schema
+from	INFORMATION_SCHEMA.COLUMNS
+where	DATA_TYPE like '%int%'
+	or data_type like '%numeric%'
+        or data_type like '%decimal%'
+--
+open	c
+--
+fetch	next from c into @table_name, @column_name, @table_schema
+	--
+	while	@@FETCH_STATUS != -1
+		BEGIN
+			set	@query = '
+			insert	into ##out(tname, cname, cntr)
+			select	' + CHAR(39) + @table_name + CHAR(39) + ', ' + CHAR(39) + @column_name + CHAR(39) + ', count(1)
+			from	' + quotename(@table_schema) + '.' + QUOTENAME(@table_name) + ' with(nolock)
+			where	' + quotename(@table_schema) + '.' + QUOTENAME(@table_name) + '.' + QUOTENAME(@column_name) + ' = ''' + @search_string + ''''
+		
+			exec	(@query)
+
+			fetch	next from c into @table_name, @column_name, @table_schema
+		END
+deallocate c
 
 
-set     @shrinksize     = @initialsize - @shrinkinc
-
-while   @shrinksize >= @floorsize
-        BEGIN
-                dbcc    shrinkfile(@logicalName, @shrinksize)
-
-                set     @shrinksize = @shrinksize - @shrinkinc
-        END
-
-dbcc    shrinkfile(@logicalName, @floorsize)
+select	*
+from	##out
+where	cntr > 0
