@@ -1,2 +1,1 @@
-Get-ClusterLog -TimeSpan 1500 -Node STESSQLANYDEV01 -Destination "C:\FortifiedData" -UseLocalTime
-Get-ClusterLog -TimeSpan 1500 -Node STESSQLANYDEV02 -Destination "C:\FortifiedData" -UseLocalTime
+select Deal, InvestmentTeam, CompositeKey, MeetingGroup, ReportingGroup
