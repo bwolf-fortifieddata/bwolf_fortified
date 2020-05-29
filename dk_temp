@@ -1,1 +1,10 @@
-select Deal, InvestmentTeam, CompositeKey, MeetingGroup, ReportingGroup
+;with a as
+	(select top 1 *
+		from FDDBA.OpsControl.OperationLog
+		where OPL_OPS_ID = 1
+		order by 1 desc
+		)
+update a
+set 
+OPL_StartDateTime = dateadd(hour, -3, OPL_StartDateTime),
+	OPL_EndDateTime = dateadd(hour, -3, OPL_EndDateTime)
