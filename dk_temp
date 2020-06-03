@@ -1,1 +1,498 @@
-https://compassus.dkpartners.com/sites/CorporateIT/engineering/Wiki/Approvers.aspx
+RAISERROR('	CREATING OR ALTERING PROCEDURE [dbo].[pRefreshDatabaseFromFiles]',10,1) WITH NOWAIT;
+
+GO
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+IF NOT EXISTS (SELECT * FROM sys.objects WHERE object_id = OBJECT_ID(N'[dbo].[pRefreshDatabaseFromFiles]') AND type in (N'P', N'PC'))
+BEGIN
+	EXEC dbo.sp_executesql @statement = N'CREATE PROCEDURE [dbo].[pRefreshDatabaseFromFiles] AS select getdate() as DT' 
+END
+
+SET ANSI_NULLS ON
+GO
+SET QUOTED_IDENTIFIER ON
+GO
+
+
+ALTER PROCEDURE [dbo].[pRefreshDatabaseFromFiles] 
+(
+	@dbName											SYSNAME 
+	,@NewdBName										SYSNAME = NULL -- USE THIS IF YOU WANT TO RESTORE WITH NEW NAME, DB MUST EXISTS CURRENTLY AS WITH MOVE IS NOT DONE HERE
+	,@FullbackupPath								NVARCHAR(300) = NULL
+	,@SecondaryFullbackupPath						NVARCHAR(300) = NULL 
+	,@DiffbackupPath								NVARCHAR(300) = NULL
+	,@SecondaryDiffbackupPath						NVARCHAR(300) = NULL
+	,@buffercount									INT = 50
+	,@maxTransferSize								INT = 4194304
+	,@SkipFull										BIT = 0
+	,@SkipDiff										BIT = 0
+	,@ForceReadHeaderonly							BIT = 0
+	,@Debug											TINYINT = 0
+	,@PrintOnly										BIT = 0 -- use this to see all restore commands that would be run, implicitly implies @debug = 1
+)
+WITH ENCRYPTION
+AS
+BEGIN
+	SET NOCOUNT ON 
+
+	-- Variable declaration 
+	DECLARE @cmd											NVARCHAR(300) 
+	DECLARE @lastFullBackup									NVARCHAR(300) 
+	DECLARE @lastFullBackupDate								DATETIME
+	DECLARE @lastFullLSN									NUMERIC(25,0)
+	DECLARE @lastDiffBackup									NVARCHAR(300) 
+	DECLARE @lastDiffBackupDate								DATETIME
+	DECLARE @lastDiffLSN									NUMERIC(25,0)
+	DECLARE @BackupType										CHAR(1)
+	DECLARE @BackupDate										DATETIME
+	DECLARE @BackupLSN										NUMERIC(25,0)
+	DECLARE @lastDiffBackupPath								NVARCHAR(300)
+	DECLARE @lastFullBackupPath								NVARCHAR(300)
+	DECLARE @backupFile										NVARCHAR(300)
+	DECLARE @sql											NVARCHAR(MAX)
+	DECLARE @msg											NVARCHAR(2048)
+
+	IF @PrintOnly = 1 AND (@Debug = 0 OR @Debug IS NULL)
+	BEGIN
+		SET @Debug = 1
+	END
+
+	IF @Debug > 0
+	BEGIN
+		PRINT '/*** pRefreshDatabaseFromFiles parameters ***********************************************'
+		PRINT '@dbName=[' + ISNULL(@dbName,'null') + ']'
+		PRINT '@NewdBName=[' + ISNULL(@NewdBName,'null') + ']'
+		PRINT '@FullbackupPath=' + ISNULL(@FullbackupPath,'null')
+		PRINT '@SecondaryFullbackupPath=' + ISNULL(@SecondaryFullbackupPath,'null')
+		PRINT '@DiffbackupPath=' + ISNULL(@DiffbackupPath,'null')
+		PRINT '@SecondaryDiffbackupPath=' + ISNULL(@SecondaryDiffbackupPath,'null')
+		PRINT '@buffercount=' + ISNULL(LTRIM(STR(@buffercount)),'null')
+		PRINT '@maxTransferSize=' + ISNULL(LTRIM(STR(@maxTransferSize)),'null')
+		PRINT '****************************************************************************************/'
+		PRINT ' '
+		--RAISERROR('',10,1) WITH NOWAIT;
+	END
+
+	IF @SkipFull = 1 OR @SkipDiff = 1
+	BEGIN
+		PRINT '/*** Skip parameters ********************************************************************'
+		PRINT '@SkipFull=' + ISNULL(LTRIM(STR(@SkipFull)),'null')
+		PRINT '@SkipDiff=' + ISNULL(LTRIM(STR(@SkipDiff)),'null')
+		PRINT '****************************************************************************************/'
+		PRINT ' '
+		--RAISERROR('',10,1) WITH NOWAIT;
+	END
+
+	IF OBJECT_ID('tempdb..#filelist') IS NOT NULL
+		DROP TABLE #filelist
+	CREATE TABLE #filelist (backupfile  NVARCHAR(255), DatabaseName NVARCHAR(256), BackupType VARCHAR(20), CreatedOn DATETIME, BackupPath nvarchar(300), LSN NUMERIC(25,0))
+
+	IF OBJECT_ID('tempdb..#headers') IS NOT NULL
+		DROP TABLE #headers
+	CREATE TABLE #headers
+		( 
+			BackupName varchar(256),
+			BackupDescription varchar(256),
+			BackupType varchar(256),        
+			ExpirationDate varchar(256),
+			Compressed varchar(256),
+			Position varchar(256),
+			DeviceType varchar(256),        
+			UserName varchar(256),
+			ServerName varchar(256),
+			DatabaseName varchar(256),
+			DatabaseVersion varchar(256),        
+			DatabaseCreationDate varchar(256),
+			BackupSize varchar(256),
+			FirstLSN varchar(256),
+			LastLSN varchar(256),        
+			CheckpointLSN varchar(256),
+			DatabaseBackupLSN varchar(256),
+			BackupStartDate varchar(256),
+			BackupFinishDate varchar(256),        
+			SortOrder varchar(256),
+			[CodePage] varchar(256),
+			UnicodeLocaleId varchar(256),
+			UnicodeComparisonStyle varchar(256),        
+			CompatibilityLevel varchar(256),
+			SoftwareVendorId varchar(256),
+			SoftwareVersionMajor varchar(256),        
+			SoftwareVersionMinor varchar(256),
+			SoftwareVersionBuild varchar(256),
+			MachineName varchar(256),
+			Flags varchar(256),        
+			BindingID varchar(256),
+			RecoveryForkID varchar(256),
+			Collation varchar(256),
+			FamilyGUID varchar(256),        
+			HasBulkLoggedData varchar(256),
+			IsSnapshot varchar(256),
+			IsReadOnly varchar(256),
+			IsSingleUser varchar(256),        
+			HasBackupChecksums varchar(256),
+			IsDamaged varchar(256),
+			BeginsLogChain varchar(256),
+			HasIncompleteMetaData varchar(256),        
+			IsForceOffline varchar(256),
+			IsCopyOnly varchar(256),
+			FirstRecoveryForkID varchar(256),
+			ForkPointLSN varchar(256),        
+			RecoveryModel varchar(256),
+			DifferentialBaseLSN varchar(256),
+			DifferentialBaseGUID varchar(256),        
+			BackupTypeDescription varchar(256),
+			BackupSetGUID varchar(256),
+			CompressedBackupSize varchar(256)
+		);
+		
+	IF @@MICROSOFTVERSION >= 184551476 --11.0.2100 (2012 RTM)
+	BEGIN
+		ALTER TABLE #headers ADD Containment varchar(256)
+	END
+		
+	IF @@MICROSOFTVERSION >= 201328592 --12.0.2000 (2014 RTM)
+	BEGIN
+		ALTER TABLE #headers ADD KeyAlgorithm nvarchar(32), EncryptorThumbprint varbinary(20), EncryptorType nvarchar(32)
+	END
+
+	ALTER TABLE #headers ADD Seq int NOT NULL identity(1,1)
+
+	/**************************************************
+		verify the trailing slash exists, if not add it
+	**************************************************/
+	If SUBSTRING(@FullbackupPath,LEN(@FullbackupPath),1) != N'\'
+		SET @FullbackupPath = @FullbackupPath + N'\'
+	
+	IF @DiffbackupPath IS NOT NULL
+		If SUBSTRING(@DiffbackupPath,LEN(@DiffbackupPath),1) != N'\'
+			SET @DiffbackupPath = @DiffbackupPath + N'\'
+
+	If @SecondaryFullbackupPath IS NOT NULL
+		If SUBSTRING(@SecondaryFullbackupPath,LEN(@SecondaryFullbackupPath),1) != N'\'
+			SET @SecondaryFullbackupPath = @SecondaryFullbackupPath + N'\'
+
+	If @SecondaryDiffbackupPath IS NOT NULL
+		If SUBSTRING(@SecondaryDiffbackupPath,LEN(@SecondaryDiffbackupPath),1) != N'\'
+			SET @SecondaryDiffbackupPath = @SecondaryDiffbackupPath + N'\'
+
+	/**************************************************
+		get list of files 
+	**************************************************/
+	--Primary Full Path
+	SET @cmd = 'DIR /A:-D /b "' + @FullbackupPath + '"'
+	INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
+	UPDATE #filelist set BackupPath = @FullbackupPath where BackupPath is null
+
+	--Secondary Full Path
+	If @SecondaryFullbackupPath IS NOT NULL
+	BEGIN
+		SET @cmd = 'DIR /A:-D /b "' + @SecondaryFullbackupPath + '"'
+		INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
+		UPDATE #filelist set BackupPath = @SecondaryFullbackupPath where BackupPath is null
+	END
+
+	--Primary Diff Path
+	If @DiffbackupPath IS NOT NULL
+	BEGIN
+		SET @cmd = 'DIR /A:-D /b "' + @DiffbackupPath + '"'
+		INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
+		UPDATE #filelist set BackupPath = @DiffbackupPath where BackupPath is null
+	END
+
+	--Secondary Diff Path
+	If @SecondaryDiffbackupPath IS NOT NULL
+	BEGIN
+		SET @cmd = 'DIR /A:-D /b "' + @SecondaryDiffbackupPath + '"'
+		INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
+		UPDATE #filelist set BackupPath = @SecondaryDiffbackupPath where BackupPath is null
+	END
+
+	DELETE FROM #filelist WHERE backupFile IS NULL OR backupFile LIKE '%The system cannot find the%'
+
+
+
+	--Get the file dates from the files
+	DECLARE @f NVARCHAR(256)
+	DECLARE @p NVARCHAR(256)
+
+	IF @Debug > 2
+	BEGIN
+		PRINT '/*** #filelist rows1 ********************************************************************'
+		SELECT * FROM #filelist 
+		PRINT '****************************************************************************************/'
+		PRINT ' '
+		--RAISERROR('',10,1) WITH NOWAIT;
+	END
+
+	DECLARE c CURSOR FOR
+	SELECT backupFile, BackupPath from #filelist 
+	OPEN c
+	FETCH c INTO @f, @p
+	WHILE @@FETCH_STATUS = 0
+	BEGIN
+		SET @BackupType = NULL
+
+		IF @ForceReadHeaderonly = 0
+		BEGIN
+			SELECT TOP 1 @BackupType = b.[type], @BackupDate = b.backup_start_date, @BackupLSN = COALESCE(b.differential_base_lsn, b.checkpoint_lsn)
+				FROM msdb.dbo.backupmediafamily f
+					INNER JOIN msdb.dbo.backupset b
+					ON f.media_set_id = b.media_set_id
+				WHERE f.physical_device_name = @p + @f
+					AND b.database_name = @dbName
+		END
+
+		IF @BackupType IS NULL
+		BEGIN
+			--SET @cmd = 'for %F in (' + @FullbackupPath + + @f +') do @echo %~tF'
+			SET @cmd = 'restore headeronly from disk = ''' + @p + @f +''''
+
+			IF @Debug > 1
+			BEGIN
+				PRINT @cmd
+			END
+
+			BEGIN TRY
+				INSERT INTO #headers
+					exec (@cmd)
+			END TRY
+			BEGIN CATCH
+				PRINT '--Error reading header of file with following command:'
+				SET @cmd = '--' + @cmd
+				PRINT @cmd 
+				PRINT ' '
+		--RAISERROR(@cmd,10,1) WITH NOWAIT;
+			END CATCH
+			UPDATE f SET
+					CreatedOn = h.BackupStartDate  
+					,DatabaseName = h.DatabaseName
+					,BackupType = CASE h.BackupType WHEN 1 THEN 'D' WHEN 5 THEN 'I' ELSE LTRIM(STR(h.BackupType)) END
+					,LSN = COALESCE(h.DifferentialBaseLSN, h.CheckpointLSN)
+				FROM #filelist f
+				CROSS JOIN #headers h
+				WHERE f.backupfile = @f 
+			TRUNCATE TABLE  #headers
+		END
+		ELSE
+		BEGIN
+			UPDATE #filelist
+				SET
+					CreatedOn = @BackupDate
+					,DatabaseName = @dbName
+					,BackupType = @BackupType
+					,LSN = @BackupLSN
+				WHERE backupfile = @f 			
+		END
+		FETCH c INTO @f, @p
+	END
+	CLOSE c
+	DEALLOCATE c
+
+	/******************************************************************************************************************************************************/
+
+	-- If the db exists add the single user code
+	--cmm changed to taking the database offline to mitigate failures due to non-exclusive access
+	SET @sql = N''
+	IF EXISTS(SELECT 1 FROM sys.databases where name = COALESCE(@NewdBName,@dbName) AND state_desc = N'ONLINE')
+	BEGIN
+		SET @sql = 'USE MASTER; 
+ALTER DATABASE [' + COALESCE(@NewdBName,@dbName) + '] SET OFFLINE WITH ROLLBACK IMMEDIATE;
+USE MASTER;'
+
+	END
+
+	--Find latest full backup 
+	SELECT 
+		 @lastFullBackup = backupfile 
+		,@lastFullBackupDate = CreatedOn
+		,@lastFullBackupPath = BackupPath
+		,@lastFullLSN = LSN
+	FROM 
+		#filelist  
+	 WHERE	
+		BackupType = 'D'
+		AND DatabaseName = @dbName  
+		AND CreatedOn = (SELECT MAX(CreatedOn)
+							FROM  #filelist
+							WHERE DatabaseName = @dbName
+							   AND BackupType = 'D'
+						)
+
+	IF @Debug > 0
+	BEGIN
+		PRINT ''
+		PRINT '/*** backup info *************************************************************************'
+		PRINT '@lastFullBackup=' + ISNULL(@lastFullBackup,'null')
+		PRINT '@lastFullBackupDate=' + ISNULL(CONVERT(NVARCHAR(60),@lastFullBackupDate,109),'null')
+		PRINT '@lastFullLSN=' + ISNULL(CONVERT(varchar(25), @lastFullLSN),'null')
+		PRINT ' '
+		--RAISERROR('',10,1) WITH NOWAIT;
+	END
+
+	IF @SkipFull = 1
+	BEGIN
+		SET @sql = @sql + CHAR(13) + CHAR(10) + '/*'
+	END
+
+	SET @sql = @sql + CHAR(13) + CHAR(10) + 'RESTORE DATABASE [' + COALESCE(@NewdBName,@dbName) + '] FROM DISK = '''  
+		   + @lastFullBackupPath + @lastFullBackup + ''' WITH NORECOVERY, REPLACE, STATS=10' 
+		   + CASE WHEN @buffercount IS NOT NULL THEN ', BUFFERCOUNT = ' + CAST(@buffercount AS VARCHAR(10)) ELSE '' END
+		   + CASE WHEN @maxTransferSize IS NOT NULL THEN ', MAXTRANSFERSIZE  = ' + CAST(@maxTransferSize AS VARCHAR(10)) ELSE '' END
+		   + ';'
+
+	IF @SkipFull = 1
+	BEGIN
+		SET @sql = @sql + CHAR(13) + CHAR(10) + '*/'
+	END
+
+	--Find latest diff backup 
+	SELECT 
+		@lastDiffBackup = backupFile
+		,@lastDiffBackupPath = BackupPath
+		,@lastDiffBackupDate = CreatedOn
+		,@lastDiffLSN = LSN
+	FROM 
+		#fileList  
+	WHERE 
+		BackupType = 'I'
+		AND DatabaseName = @dbName  
+		AND CreatedOn = (SELECT MAX(CreatedOn)
+							FROM  #filelist
+							WHERE  DatabaseName = @dbName 
+							   AND BackupType = 'I'
+						)
+		AND CreatedOn > @lastFullBackupDate
+
+	IF @Debug > 0
+	BEGIN
+		PRINT '@lastDiffBackup=' + ISNULL(@lastDiffBackup,'null')
+		PRINT '@lastDiffBackupDate=' + ISNULL(CONVERT(NVARCHAR(60),@lastDiffBackupDate,109),'null')
+		PRINT '@lastDiffLSN=' + ISNULL(CONVERT(varchar(25), @lastDiffLSN),'null')
+		PRINT '****************************************************************************************/'
+
+		IF @Debug > 1
+		BEGIN
+			PRINT ''
+			PRINT '/*** #filelist rows2 ********************************************************************'
+			PRINT ''
+			SELECT * from #fileList
+			PRINT '****************************************************************************************/'
+		END
+		PRINT ' '
+		--RAISERROR('',10,1) WITH NOWAIT;
+	END
+
+
+	-- check to make sure there is a diff backup 
+	IF @lastDiffBackup IS NOT NULL 
+	BEGIN 
+		IF @SkipDiff = 1
+		BEGIN
+			SET @sql = REPLACE(@sql,' NORECOVERY',' RECOVERY')
+			SET @sql = @sql + CHAR(13) + CHAR(10) + '/*' 
+		END
+
+		--mjz changed order to 0x0d0a 
+		SET @sql = @sql + + CHAR(13) + CHAR(10) + 'RESTORE DATABASE [' + @dbName + '] FROM DISK = '''  
+				+ @lastDiffBackupPath + @lastDiffBackup + ''' WITH RECOVERY , STATS=10' 
+				+ CASE WHEN @buffercount IS NOT NULL THEN ', BUFFERCOUNT = ' + CAST(@buffercount AS VARCHAR(10)) ELSE '' END
+				+ CASE WHEN @maxTransferSize IS NOT NULL THEN ', MAXTRANSFERSIZE  = ' + CAST(@maxTransferSize AS VARCHAR(10)) ELSE '' END
+				+ ';'
+
+	   	IF @SkipDiff = 1
+		BEGIN
+			SET @sql = @sql + CHAR(13) + CHAR(10) + '*/'
+		END
+	END 
+	ELSE
+	BEGIN
+		--NEED TO CHANGE THE NORECOVERY OPTION TO RECOVERY, IF ADDING TRAN LOG BACKUP THEN THIS CODE HAS TO MOVE TO THE END
+		SET @sql = REPLACE(@sql,' NORECOVERY',' RECOVERY')
+		SET @sql = @sql + CHAR(13) + CHAR(10) + '--Could not find a differential backup'
+		RAISERROR('--Could not find a differential backup' ,10,1);
+	END
+
+	--cmm added the below to bring database online in case restore errors out and database left offline, mjz changed order to 0x0d0a 
+	SET @sql = @sql + CHAR(13) + CHAR(10) + 'ALTER DATABASE [' + COALESCE(@NewdBName,@dbName) + '] SET ONLINE;'
+
+	PRINT ''
+	PRINT '--SQL Statement:'
+	PRINT @sql
+
+
+	/**************************************************
+		Execute the restore
+	**************************************************/
+	IF @PrintOnly = 0
+	BEGIN
+		PRINT ''
+		PRINT ''
+		RAISERROR('--About to execute statement.' ,10,1) WITH NOWAIT;
+		IF @lastDiffBackup IS NULL
+		BEGIN
+			IF EXISTS (SELECT 1 FROM dbo.CommandLog)
+			BEGIN
+				INSERT dbo.CommandLog (DatabaseName, Command, CommandType, StartTime)
+					VALUES (@dbName, @sql, 'RESTORE_DATABASE', GETDATE())
+			END
+			EXECUTE sp_executesql @sql
+			PRINT '--Statement execution completed.'
+		END
+		ELSE
+		BEGIN
+			IF @lastFullLSN = @lastDiffLSN
+			BEGIN
+				IF EXISTS (SELECT 1 FROM dbo.CommandLog)
+				BEGIN
+					INSERT dbo.CommandLog (DatabaseName, Command, CommandType, StartTime)
+						VALUES (@dbName, @sql, 'RESTORE_DATABASE', GETDATE())
+				END
+				EXECUTE sp_executesql @sql
+				PRINT '--Statement execution completed.'
+			END
+			ELSE
+			BEGIN
+				IF @SkipFull = 1 OR @SkipDiff = 1
+				BEGIN
+					SET @sql = @sql + CHAR(13) + CHAR(10) + '--WARNING: Differential backup not based on full backup.'
+					RAISERROR('--WARNING: Differential backup not based on full backup.' ,10,1) WITH NOWAIT;
+					IF EXISTS (SELECT 1 FROM dbo.CommandLog)
+					BEGIN
+						INSERT dbo.CommandLog (DatabaseName, Command, CommandType, StartTime)
+							VALUES (@dbName, @sql, 'RESTORE_DATABASE', GETDATE())
+					END
+					EXECUTE sp_executesql @sql
+					PRINT '--Statement execution completed.'
+				END
+				ELSE
+				BEGIN
+					SET @sql = @sql + CHAR(13) + CHAR(10) + '--ERROR: Differential backup not based on full backup. Command not executed'
+					RAISERROR('ERROR: Differential backup not based on full backup. Command not executed' ,16,1) WITH NOWAIT;
+					IF EXISTS (SELECT 1 FROM dbo.CommandLog)
+					BEGIN
+						INSERT dbo.CommandLog (DatabaseName, Command, CommandType, StartTime, ErrorNumber)
+							VALUES (@dbName, @sql, 'RESTORE_DATABASE', GETDATE(), 3136)
+					END
+				END
+			END
+		END
+	END
+	ELSE
+	BEGIN
+		IF @lastDiffBackup IS NOT NULL
+		BEGIN
+			IF @lastFullLSN != @lastDiffLSN
+			BEGIN
+				RAISERROR('--WARNING: Differential backup not based on full backup.' ,10,1) WITH NOWAIT;
+			END
+		END
+	END
+	
+	PRINT ' '
+		--RAISERROR('',10,1) WITH NOWAIT;
+END
+GO
