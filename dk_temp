@@ -195,21 +195,21 @@ BEGIN
 		UPDATE #filelist set BackupPath = @SecondaryFullbackupPath where BackupPath is null
 	END
 
-	--Primary Diff Path
-	If @DiffbackupPath IS NOT NULL
-	BEGIN
-		SET @cmd = 'DIR /A:-D /b "' + @DiffbackupPath + '"'
-		INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
-		UPDATE #filelist set BackupPath = @DiffbackupPath where BackupPath is null
-	END
+	----Primary Diff Path
+	--If @DiffbackupPath IS NOT NULL
+	--BEGIN
+	--	SET @cmd = 'DIR /A:-D /b "' + @DiffbackupPath + '"'
+	--	INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
+	--	UPDATE #filelist set BackupPath = @DiffbackupPath where BackupPath is null
+	--END
 
-	--Secondary Diff Path
-	If @SecondaryDiffbackupPath IS NOT NULL
-	BEGIN
-		SET @cmd = 'DIR /A:-D /b "' + @SecondaryDiffbackupPath + '"'
-		INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
-		UPDATE #filelist set BackupPath = @SecondaryDiffbackupPath where BackupPath is null
-	END
+	----Secondary Diff Path
+	--If @SecondaryDiffbackupPath IS NOT NULL
+	--BEGIN
+	--	SET @cmd = 'DIR /A:-D /b "' + @SecondaryDiffbackupPath + '"'
+	--	INSERT INTO #filelist(backupFile) EXEC master.sys.xp_cmdshell @cmd 
+	--	UPDATE #filelist set BackupPath = @SecondaryDiffbackupPath where BackupPath is null
+	--END
 
 	DELETE FROM #filelist WHERE backupFile IS NULL OR backupFile LIKE '%The system cannot find the%'
 
@@ -348,6 +348,50 @@ USE MASTER;'
 	BEGIN
 		SET @sql = @sql + CHAR(13) + CHAR(10) + '*/'
 	END
+
+
+/*********************************************************************************************************
+        -- BEGIN
+        -- moved the secondary Diff backup obtain to AFTER the full finishes as there
+        -- were overlaps from production
+        -- wjw(fd) 2020-06-03
+*********************************************************************************************************/
+
+	--Primary Diff Path
+        If      @DiffbackupPath IS NOT NULL
+                BEGIN
+                        SET     @cmd = 'DIR /A:-D /b "' + @DiffbackupPath + '"'
+                        
+                        INSERT  INTO #filelist(backupFile)
+                        EXEC    master.sys.xp_cmdshell @cmd 
+                        
+                        UPDATE  #filelist
+                        set     BackupPath = @DiffbackupPath
+                        where   BackupPath is null
+                END
+
+	--Secondary Diff Path
+
+        If      @SecondaryDiffbackupPath IS NOT NULL
+                BEGIN
+                        SET     @cmd = 'DIR /A:-D /b "' + @SecondaryDiffbackupPath + '"'
+                        
+                        INSERT  INTO #filelist(backupFile)
+                        EXEC    master.sys.xp_cmdshell @cmd 
+                        
+                        UPDATE  #filelist
+                        set     BackupPath = @SecondaryDiffbackupPath
+                        where   BackupPath is null
+                END
+
+	DELETE FROM #filelist WHERE backupFile IS NULL OR backupFile LIKE '%The system cannot find the%'
+
+/*********************************************************************************************************
+        -- END
+        -- moved the secondary Diff backup obtain to AFTER the full finishes as there
+        -- were overlaps from production
+        -- wjw(fd) 2020-06-03
+*********************************************************************************************************/
 
 	--Find latest diff backup 
 	SELECT 
