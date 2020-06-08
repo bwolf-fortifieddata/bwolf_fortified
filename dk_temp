@@ -1,52 +1,7 @@
-/*============================================================================
-  File:     CPU Pressure - Signal Waits
-​
-  Summary:  Shows signal waits versus resource waits.
-  
-  Date:     2008
-​
-  Versions: 2005 and 2008
-------------------------------------------------------------------------------
-  Written by Ben DeBow, FORTIFIED DATA
-	
-  For more scripts and sample code, check out 
-    http://www.fortifieddata.com
-​
-  THIS CODE AND INFORMATION ARE PROVIDED "AS IS" WITHOUT WARRANTY OF 
-  ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED 
-  TO THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-  PARTICULAR PURPOSE.
-============================================================================*/
-​
-SELECT GETDATE() AS 'Time'
-	, signal_wait_time_ms = SUM(signal_wait_time_ms)
-	, '%signal (cpu) waits' = CAST(100.0 * SUM(signal_wait_time_ms) / SUM(wait_time_ms) AS NUMERIC(20,2))
-	, resource_wait_time_ms = SUM(wait_time_ms - signal_wait_time_ms)
-	, '%resource waits' = CAST(100.0 * SUM(wait_time_ms - signal_wait_time_ms) / SUM(wait_time_ms) AS NUMERIC(20,2))
-FROM SYS.DM_OS_WAIT_STATS
-​
---	PENDING PROCESSES ON THE SCHEDULERS WAITING TO BE EXECUTED
-SELECT scheduler_id
-	, current_tasks_count
-	, runnable_tasks_count
-	, work_queue_count
-	, pending_disk_io_count
-	, status
-	, load_factor
-	, context_switches_count
-	, preemptive_switches_count
-FROM sys.dm_os_schedulers
-WHERE scheduler_id < 255
-ORDER BY 3 DESC
-​
-SELECT COUNT(*) [Total Cores Not Licensed]
-FROM sys.dm_os_schedulers
-WHERE scheduler_id < 255
-AND status = 'VISIBLE OFFLINE'
-​
----- DISPLAYS THE SPIN LOCK STATISTICS
---SELECT *
---FROM sys.dm_os_spinlocks_stats 
---ORDER BY spins_count
-​
--- DBCC SQLPERF ('sys.dm_os_wait_stats', CLEAR);
+DK_SP_FXF_GET_CURRENCY_EXPOSURE_DATA @FromDate = '4/28/2018 12:00:00 AM'
+
+,@ToDate = '4/28/2020 12:00:00 AM'
+
+,@SearchCriteria = 'T'
+
+,@Deal = 'NGF / DANISH BIOGAS'
