@@ -1,3 +1,21 @@
+From: Pankaj Kumar (Third Party Consultant)
+Sent: Wednesday, June 3, 2020 10:32 AM
+To: Bill Wolf (Third Party Consultant) <bwolf@fortifieddata.com>; Fortified Support <support@fortifieddata.com>; Omprabhu Arumugam <OArumugam@dkp.com>
+Cc: Marios Koumides <mkoumides@dkp.com>; Dharati Patel (Third Party Consultant) <Dpatel@dkp.com>
+Subject: RE: [Request received] Database failure
+
+ 
+
+Hi Bill,
+
+ 
+
+We executed “DK_SP_FXF_GET_CURRENCY_EXPOSURE_DATA” Procedure in Production by taking the parameters from the log file and found it took just a second to execute which had taken almost 10min in Production yesterday. We are still figuring out whether it is because of procedure or some database related issue.
+
+However, we did some changes in this Proc. Please find the attached files and  let us know any further improvement we can do in it.
+
+ 
+
 DK_SP_FXF_GET_CURRENCY_EXPOSURE_DATA @FromDate = '4/28/2018 12:00:00 AM'
 
 ,@ToDate = '4/28/2020 12:00:00 AM'
@@ -5,3 +23,9 @@ DK_SP_FXF_GET_CURRENCY_EXPOSURE_DATA @FromDate = '4/28/2018 12:00:00 AM'
 ,@SearchCriteria = 'T'
 
 ,@Deal = 'NGF / DANISH BIOGAS'
+
+ 
+
+Regards,
+
+Pankaj Kumar
