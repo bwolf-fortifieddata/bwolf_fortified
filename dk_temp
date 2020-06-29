@@ -1,27 +1,31 @@
- 
+USE [master]
+GO
+CREATE LOGIN [DKP\vyazdi] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
+GO
+USE [DK_DB_RISK]
+GO
+CREATE USER [DKP\vyazdi] FOR LOGIN [DKP\vyazdi]
+GO
+USE [DK_DB_RISKSB]
+GO
+CREATE USER [DKP\vyazdi] FOR LOGIN [DKP\vyazdi]
+GO
+USE [DK_DB_RISKSB]
+GO
+grant   select on Dbo.GetSimpleLSEPortfolio to [DKP\vyazdi]
+go
+use     Dk_DB_Risk
+go
+grant   select on Dbo.Dkg_Vw_Equity_Positions to [DKP\vyazdi]
+go
+grant   select on Rdm.DealAttribute to [DKP\vyazdi]
+go
+grant   select on Rdm.SecurityAttribute to [DKP\vyazdi]
+go
+grant   select on Risk.DealAttribute to [DKP\vyazdi]
+go
+grant   select on Risk.SecurityAttribute to [DKP\vyazdi]
+go
+grant   select on Dbo.Dkg_Tbl_Equity_Positions to [DKP\vyazdi]
+go
 
-Server: PrdDbRiskSB01 (Production Sandbox)
-
-User: Vesal Yazdi
-
-Permission: Read Only
-
-Objects:
-
-Read Only / Execute Permission
-Dk_Db_RiskSB
-                                                              i.     Dbo.GetSimpleLSEPortfolio() – This is a sql function
-
-Underlying Objects, Read Only permission needed.
-Dk_DB_Risk
-                                                              i.     Dbo.Dkg_Vw_Equity_Positions
-
-                                                             ii.     Rdm.DealAttribute
-
-                                                            iii.     Rdm.SecurityAttribute
-
-                                                            iv.     Risk.DealAttribute
-
-                                                             v.     Risk.SecurityAttribute
-
-                                                            vi.     Dbo.Dkg_Tbl_Equity_Positions
