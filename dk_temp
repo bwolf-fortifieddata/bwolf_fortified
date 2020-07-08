@@ -1,31 +1,10 @@
-USE [master]
-GO
-CREATE LOGIN [DKP\vyazdi] FROM WINDOWS WITH DEFAULT_DATABASE=[master]
-GO
-USE [DK_DB_RISK]
-GO
-CREATE USER [DKP\vyazdi] FOR LOGIN [DKP\vyazdi]
-GO
-USE [DK_DB_RISKSB]
-GO
-CREATE USER [DKP\vyazdi] FOR LOGIN [DKP\vyazdi]
-GO
-USE [DK_DB_RISKSB]
-GO
-grant   select on Dbo.GetSimpleLSEPortfolio to [DKP\vyazdi]
-go
-use     Dk_DB_Risk
-go
-grant   select on Dbo.Dkg_Vw_Equity_Positions to [DKP\vyazdi]
-go
-grant   select on Rdm.DealAttribute to [DKP\vyazdi]
-go
-grant   select on Rdm.SecurityAttribute to [DKP\vyazdi]
-go
-grant   select on Risk.DealAttribute to [DKP\vyazdi]
-go
-grant   select on Risk.SecurityAttribute to [DKP\vyazdi]
-go
-grant   select on Dbo.Dkg_Tbl_Equity_Positions to [DKP\vyazdi]
-go
-
+Date and time: 2020-07-07 18:00:02
+Database context: [master]
+Command: BACKUP LOG [AG2Seed] TO DISK = N'\\dkp.com\dfs\NJ1DBTLFILES\CL1PRDADMIN01$CL1PRDDB01_AG2\AG2Seed\LOG\CL1PRDADMIN01$CL1PRDDB01_AG2_AG2Seed_LOG_20200707_180001.trn' WITH CHECKSUM, COMPRESSION, BLOCKSIZE = 65536, BUFFERCOUNT = 50, MAXTRANSFERSIZE = 4194304
+Msg 3201, Level 16, State 1, Server NJ1PRDDB28, Line 1
+Cannot open backup device '\\dkp.com\dfs\NJ1DBTLFILES\CL1PRDADMIN01$CL1PRDDB01_AG2\AG2Seed\LOG\CL1PRDADMIN01$CL1PRDDB01_AG2_AG2Seed_LOG_20200707_180001.trn'. Operating system error 32(The process cannot access the file because it is being used by another process.).
+Msg 3013, Level 16, State 1, Server NJ1PRDDB28, Line 1
+BACKUP LOG is terminating abnormally.
+Outcome: Failed
+Duration: 00:00:00
+Date and time: 2020-07-07 18:00:02
