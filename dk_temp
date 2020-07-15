@@ -1,10 +1,75 @@
-Date and time: 2020-07-07 18:00:02
-Database context: [master]
-Command: BACKUP LOG [AG2Seed] TO DISK = N'\\dkp.com\dfs\NJ1DBTLFILES\CL1PRDADMIN01$CL1PRDDB01_AG2\AG2Seed\LOG\CL1PRDADMIN01$CL1PRDDB01_AG2_AG2Seed_LOG_20200707_180001.trn' WITH CHECKSUM, COMPRESSION, BLOCKSIZE = 65536, BUFFERCOUNT = 50, MAXTRANSFERSIZE = 4194304
-Msg 3201, Level 16, State 1, Server NJ1PRDDB28, Line 1
-Cannot open backup device '\\dkp.com\dfs\NJ1DBTLFILES\CL1PRDADMIN01$CL1PRDDB01_AG2\AG2Seed\LOG\CL1PRDADMIN01$CL1PRDDB01_AG2_AG2Seed_LOG_20200707_180001.trn'. Operating system error 32(The process cannot access the file because it is being used by another process.).
-Msg 3013, Level 16, State 1, Server NJ1PRDDB28, Line 1
-BACKUP LOG is terminating abnormally.
-Outcome: Failed
-Duration: 00:00:00
-Date and time: 2020-07-07 18:00:02
+--—–Code has been copied and modified from Paul's Blog————–
+use	distribution
+go
+/*************************************************************************************************
+**
+*************************************************************************************************/
+	declare	@xact_seqno	varbinary(16)	,
+		@str		varchar(255)	,
+		@subscriber_db	varchar(256)	,
+		@publication	varchar(256)    ,
+                @article_id     int             ,
+                @article        varchar(256)
+		
+	select	@subscriber_db	= 'Medapoint'			,
+		@Publication	= 'Medapoint_Tables'            ,
+                @article        = null--'Claims'
+
+
+        select  @article_id = ma.article_id
+        from    MSarticles ma
+                inner join MSpublications mp on mp.publication_id = ma.publication_id
+        where   mp.publication = @publication
+                and ma.article = @article
+
+
+	if	object_id('tempdb..#trancommands') is not null
+		drop table #trancommands
+
+
+		
+	create	table #trancommands
+		(
+		xact_seqno			varbinary(16)	null	,
+		originator_srvname		sysname		null	,
+		originator_db			sysname		null	,
+		article_id			int		null	,
+		[type]				int		null	,
+		partial_command			bit		null	,
+		hashkey				int		null	,
+		originator_publication_id	int		null	,
+		originator_db_version		int		null	,
+		originator_lsn			varbinary(16)	null	,
+		command				nvarchar(1024)	null	,
+		command_id			int		null
+		)
+/*************************************************************************************************
+**
+*************************************************************************************************/
+	select	@xact_seqno = max(xact_seqno)
+	from	MSsubscriptions
+		inner join MSpublications on MSpublications.publication_id = MSsubscriptions.publication_id
+		inner join MSdistribution_history on MSdistribution_history.agent_id = MSsubscriptions.agent_id
+                inner join MSarticles ma on ma.publication_id = MSpublications.publication_id
+	Where	subscriber_db = @subscriber_db
+		AND Publication = @Publication
+                and (@article_id is null or ma.article_id = @article_id)
+
+
+	Print	@xact_seqno
+
+	set	@str = master.dbo.fn_varbintohexstr (@xact_seqno)
+	set	@str = left(@str, len(@str) - 8)
+/*************************************************************************************************
+**
+*************************************************************************************************/
+	insert	into #trancommands
+	exec	sp_browsereplcmds
+		@xact_seqno_start	= @str	,
+		@article_id		= @article_id
+		
+	select	*
+	from	#trancommands
+	where	xact_seqno > @xact_seqno
+
+	drop	table #trancommands
